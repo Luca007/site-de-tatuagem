@@ -1,26 +1,25 @@
 import "@/styles/globals.css";
 import type { Metadata } from "next";
-import { Montserrat } from "next/font/google";
-import { Playfair_Display } from "next/font/google";
+import { Inter as FontSans } from "next/font/google";
+import { Raleway } from "next/font/google";
 import { cn } from "@/lib/utils";
 import { Providers } from "@/providers";
 import Header from "@/components/layout/header";
 import Footer from "@/components/layout/footer";
 
-const montserrat = Montserrat({
+const fontSans = FontSans({
   subsets: ["latin"],
   variable: "--font-sans",
 });
 
-const playfair = Playfair_Display({
+const raleway = Raleway({
   subsets: ["latin"],
-  variable: "--font-display",
+  variable: "--font-raleway",
 });
 
 export const metadata: Metadata = {
-  title: "Estúdio Arte em Pele - Tatuagens Profissionais",
-  description: "Tenha a tatuagem perfeita feita por um artista profissional. Agende sua sessão hoje e dê vida às suas ideias através da arte.",
-  keywords: "tatuagem, tattoo, estúdio de tatuagem, arte corporal, tatuador profissional, tatuagens personalizadas",
+  title: "Ink Master - Professional Tattoo Studio",
+  description: "Get the perfect tattoo from a professional artist. Book your session today and bring your ideas to life through art.",
 };
 
 export default function RootLayout({
@@ -29,11 +28,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="pt-BR" suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning>
       <body className={cn(
         "min-h-screen bg-background font-sans antialiased",
-        montserrat.variable,
-        playfair.variable
+        fontSans.variable,
+        raleway.variable
       )}>
         <Providers>
           <div className="flex min-h-screen flex-col">
