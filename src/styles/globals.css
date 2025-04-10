@@ -1,0 +1,252 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 240 10% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 240 10% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 240 10% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 346.8 77.2% 49.8%;
+    --primary-foreground: 355.7 100% 97.3%;
+    --secondary: 240 3.7% 15.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%;
+    --accent: 240 3.7% 15.9%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 3.7% 15.9%;
+    --input: 240 3.7% 15.9%;
+    --ring: 346.8 77.2% 49.8%;
+    --radius: 0.5rem;
+  }
+
+  .light {
+    --background: 0 0% 100%;
+    --foreground: 240 10% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 3.9%;
+    --primary: 346.8 77.2% 49.8%;
+    --primary-foreground: 355.7 100% 97.3%;
+    --secondary: 240 4.8% 95.9%;
+    --secondary-foreground: 240 5.9% 10%;
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 240 3.8% 46.1%;
+    --accent: 240 4.8% 95.9%;
+    --accent-foreground: 240 5.9% 10%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 5.9% 90%;
+    --input: 240 5.9% 90%;
+    --ring: 346.8 77.2% 49.8%;
+  }
+}
+
+/* Custom Typography */
+@layer base {
+  body {
+    @apply font-sans antialiased text-foreground bg-background;
+  }
+
+  .font-display {
+    font-family: var(--font-display), 'Playfair Display', Georgia, serif;
+  }
+
+  /* Heading styles */
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-display font-semibold tracking-tight;
+  }
+
+  h1 {
+    @apply text-4xl md:text-5xl lg:text-6xl;
+  }
+
+  h2 {
+    @apply text-3xl md:text-4xl;
+  }
+
+  h3 {
+    @apply text-2xl md:text-3xl;
+  }
+
+  h4 {
+    @apply text-xl md:text-2xl;
+  }
+
+  h5 {
+    @apply text-lg md:text-xl;
+  }
+
+  /* For smooth scrolling */
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+/* Common Components */
+@layer components {
+  .container {
+    @apply px-4 mx-auto max-w-7xl;
+  }
+
+  .hero-section {
+    @apply relative min-h-[90vh] flex items-center justify-center bg-gradient-to-b from-background via-background to-secondary/20;
+  }
+
+  .section-padding {
+    @apply py-16 md:py-24;
+  }
+
+  .section-title {
+    @apply text-3xl md:text-4xl font-bold mb-6 text-center font-display;
+  }
+
+  .gradient-text {
+    @apply text-transparent bg-clip-text bg-gradient-to-r from-primary to-red-400;
+  }
+
+  /* Ink Splatter Effect */
+  .ink-splatter {
+    @apply relative overflow-hidden;
+  }
+
+  .ink-splatter::before {
+    @apply content-[''] absolute w-full h-full opacity-10 z-0 pointer-events-none;
+    background-image: url('/images/ink-splatter.png');
+    background-size: cover;
+    background-position: center;
+  }
+
+  /* Tattoo Needle Divider */
+  .needle-divider {
+    @apply relative h-px w-full my-8 bg-border overflow-visible;
+  }
+
+  .needle-divider::before {
+    @apply content-[''] absolute left-1/2 top-1/2 w-8 h-8 -translate-x-1/2 -translate-y-1/2 bg-background;
+    mask-image: url('/images/needle-icon.svg');
+    mask-size: contain;
+    mask-repeat: no-repeat;
+    mask-position: center;
+  }
+
+  /* Portfolio Gallery */
+  .portfolio-grid {
+    @apply grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6;
+  }
+
+  .portfolio-item {
+    @apply overflow-hidden rounded-lg transition-all duration-300 hover:shadow-[0_0_15px_rgba(255,0,80,0.3)];
+  }
+
+  /* Button hover effects */
+  .btn-hover-effect {
+    @apply relative overflow-hidden transition-all duration-300 ease-in-out;
+  }
+
+  .btn-hover-effect::after {
+    @apply content-[''] absolute top-0 left-0 w-full h-full bg-primary/20 transform translate-x-[-100%] skew-x-[-15deg] transition-transform duration-300 ease-out;
+  }
+
+  .btn-hover-effect:hover::after {
+    @apply transform translate-x-[100%];
+  }
+
+  /* Estilo para Seções de Conteúdo */
+  .content-section {
+    @apply relative py-16 md:py-24;
+  }
+
+  .content-section-dark {
+    @apply content-section bg-secondary;
+  }
+
+  /* Cards estilizados */
+  .tattoo-card {
+    @apply rounded-lg bg-card border border-primary/20 transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-primary/20;
+  }
+}
+
+/* Custom Animations */
+@layer utilities {
+  .animate-fade-in {
+    animation: fadeIn 0.8s ease-in-out forwards;
+  }
+
+  .animate-slide-up {
+    animation: slideUp 0.8s ease-out forwards;
+  }
+
+  .animate-slide-in-left {
+    animation: slideInLeft 0.8s ease-out forwards;
+  }
+
+  .animate-slide-in-right {
+    animation: slideInRight 0.8s ease-out forwards;
+  }
+
+  .animate-pulse-glow {
+    animation: pulseGlow 2s infinite;
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes slideUp {
+    from {
+      transform: translateY(30px);
+      opacity: 0;
+    }
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+
+  @keyframes slideInLeft {
+    from {
+      transform: translateX(-50px);
+      opacity: 0;
+    }
+    to {
+      transform: translateX(0);
+      opacity: 1;
+    }
+  }
+
+  @keyframes slideInRight {
+    from {
+      transform: translateX(50px);
+      opacity: 0;
+    }
+    to {
+      transform: translateX(0);
+      opacity: 1;
+    }
+  }
+
+  @keyframes pulseGlow {
+    0% {
+      box-shadow: 0 0 5px 0 rgba(236, 72, 153, 0.3);
+    }
+    50% {
+      box-shadow: 0 0 20px 5px rgba(236, 72, 153, 0.5);
+    }
+    100% {
+      box-shadow: 0 0 5px 0 rgba(236, 72, 153, 0.3);
+    }
+  }
+}
