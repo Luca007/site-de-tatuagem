@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Send, Image as ImageIcon, ArrowLeft, MessageSquare, X } from "lucide-react";
-import { clientDb } from "@/lib/firebase";
+import { clientDb, getClientMessages, addClientMessage, updateClientMessage, deleteClientMessage, onClientMessagesSnapshot } from "@/lib/firebase";
 import { collection, query, orderBy, onSnapshot, addDoc, doc, updateDoc, limit, where } from "firebase/firestore";
 
 // Demo data for development purposes
@@ -188,6 +188,15 @@ export default function ClientMessages() {
       setClients(updatedClients);
     }
   }, [selectedClient, clients]);
+
+  useEffect(() => {
+    const unsubscribe = onClientMessagesSnapshot((snapshot) => {
+      const updatedMessages = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setMessages(updatedMessages);
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   const handleClientSelect = (client: Client) => {
     setSelectedClient(client);

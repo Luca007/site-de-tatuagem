@@ -7,7 +7,7 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
-import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
+import { createUserWithEmailAndPassword, updateProfile, signInWithEmailAndPassword } from "firebase/auth";
 import { doc, setDoc } from "firebase/firestore";
 import { clientAuth, clientDb } from "@/lib/firebase";
 
@@ -126,6 +126,38 @@ export default function RegisterPage() {
         setAuthError("An error occurred during registration. Please try again.");
       }
       toast.error("Registration failed. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  async function handleTestLogin() {
+    setIsLoading(true);
+    setAuthError(null);
+
+    try {
+      const testEmail = "testuser@example.com";
+      const testPassword = "TestPassword123";
+
+      const userCredential = await signInWithEmailAndPassword(
+        clientAuth,
+        testEmail,
+        testPassword
+      );
+
+      const user = userCredential.user;
+
+      toast.success("Logged in successfully!");
+      router.push("/");
+    } catch (error: unknown) {
+      console.error("Login error:", error);
+      const firebaseError = error as FirebaseError;
+      if (firebaseError.code === "auth/user-not-found") {
+        setAuthError("Test user not found. Please check the credentials.");
+      } else {
+        setAuthError("An error occurred during login. Please try again.");
+      }
+      toast.error("Login failed. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -290,6 +322,9 @@ export default function RegisterPage() {
               Sign in
             </Link>
           </div>
+          <Button variant="outline" className="w-full" onClick={handleTestLogin} disabled={isLoading}>
+            {isLoading ? "Logging in..." : "Login with Test Credentials"}
+          </Button>
         </CardFooter>
       </Card>
     </div>

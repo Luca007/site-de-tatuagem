@@ -40,6 +40,18 @@ const services = [
     ],
     link: "/services/touch-ups",
   },
+  {
+    id: "sample-service",
+    title: "Sample Service",
+    description: "This is a sample service for testing purposes.",
+    features: [
+      "Sample feature 1",
+      "Sample feature 2",
+      "Sample feature 3",
+      "Sample feature 4",
+    ],
+    link: "/services/sample-service",
+  },
 ];
 
 export default function ServiceCards() {
