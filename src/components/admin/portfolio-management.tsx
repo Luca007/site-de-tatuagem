@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, type ChangeEvent } from "react";
+import { useState, useRef, useEffect, type ChangeEvent } from "react";
 import { toast } from "sonner";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
@@ -17,13 +17,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { PlusCircle, X, MoveVertical, Trash2, Edit, Image as ImageIcon } from "lucide-react";
-import { clientDb, clientStorage } from "@/lib/firebase";
+import { clientDb, clientStorage, addPortfolioItem, getPortfolioItems, updatePortfolioItem, deletePortfolioItem } from "@/lib/firebase";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { collection, addDoc, doc, updateDoc, deleteDoc, serverTimestamp } from "firebase/firestore";
 import Draggable from "react-draggable";
 
-// Demo data for development - will be replaced with Firestore data
-const DEMO_PORTFOLIO_ITEMS = [
+// Sample data for testing purposes
+const SAMPLE_PORTFOLIO_ITEMS = [
   {
     id: "1",
     title: "Geometric Wolf",
@@ -60,7 +60,7 @@ interface PortfolioItem {
 }
 
 export default function PortfolioManagement() {
-  const [portfolioItems, setPortfolioItems] = useState<PortfolioItem[]>(DEMO_PORTFOLIO_ITEMS);
+  const [portfolioItems, setPortfolioItems] = useState<PortfolioItem[]>(SAMPLE_PORTFOLIO_ITEMS);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -79,6 +79,19 @@ export default function PortfolioManagement() {
   });
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
+
+  useEffect(() => {
+    async function fetchPortfolioItems() {
+      try {
+        const items = await getPortfolioItems();
+        setPortfolioItems(items);
+      } catch (error) {
+        console.error("Error fetching portfolio items:", error);
+      }
+    }
+
+    fetchPortfolioItems();
+  }, []);
 
   const handleAddClick = () => {
     setIsAddDialogOpen(true);
@@ -136,20 +149,20 @@ export default function PortfolioManagement() {
     setIsUploading(true);
 
     try {
-      // In a real app, this would upload to Firebase Storage and save to Firestore
-      // For now, we'll simulate it with a timeout
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      const storageRef = ref(clientStorage, `portfolio/${file.name}`);
+      await uploadBytes(storageRef, file);
+      const imageUrl = await getDownloadURL(storageRef);
 
-      // Create a new portfolio item
       const newItem: PortfolioItem = {
-        id: Date.now().toString(), // This would be a Firestore document ID
+        id: Date.now().toString(),
         title: newItemData.title,
         style: newItemData.style,
         description: newItemData.description,
-        imageUrl: imagePreview || "/portfolio/placeholder.jpg", // In reality, this would be the Firebase Storage URL
+        imageUrl,
         order: portfolioItems.length + 1,
       };
 
+      await addPortfolioItem(newItem);
       setPortfolioItems([...portfolioItems, newItem]);
       setIsAddDialogOpen(false);
       toast.success("Portfolio item added successfully");
@@ -167,21 +180,17 @@ export default function PortfolioManagement() {
     setIsUploading(true);
 
     try {
-      // In a real app, this would update the Firestore document
-      // For now, we'll simulate it with a timeout
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      const updatedItem = {
+        ...selectedItem,
+        title: editItemData.title,
+        style: editItemData.style,
+        description: editItemData.description,
+      };
 
-      const updatedItems = portfolioItems.map((item) => {
-        if (item.id === selectedItem.id) {
-          return {
-            ...item,
-            title: editItemData.title,
-            style: editItemData.style,
-            description: editItemData.description,
-          };
-        }
-        return item;
-      });
+      await updatePortfolioItem(selectedItem.id, updatedItem);
+      const updatedItems = portfolioItems.map((item) =>
+        item.id === selectedItem.id ? updatedItem : item
+      );
 
       setPortfolioItems(updatedItems);
       setIsEditDialogOpen(false);
@@ -198,10 +207,7 @@ export default function PortfolioManagement() {
     if (!selectedItem) return;
 
     try {
-      // In a real app, this would delete the Firestore document and the image from Storage
-      // For now, we'll simulate it with a timeout
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-
+      await deletePortfolioItem(selectedItem.id);
       const updatedItems = portfolioItems.filter((item) => item.id !== selectedItem.id);
       setPortfolioItems(updatedItems);
       setIsDeleteDialogOpen(false);
@@ -210,6 +216,17 @@ export default function PortfolioManagement() {
       console.error("Error deleting portfolio item:", error);
       toast.error("Failed to delete portfolio item");
     }
+  };
+
+  const handleDragEnd = (item: PortfolioItem, position: { x: number; y: number }) => {
+    const updatedItems = portfolioItems.map((portfolioItem) => {
+      if (portfolioItem.id === item.id) {
+        return { ...portfolioItem, order: position.y };
+      }
+      return portfolioItem;
+    });
+
+    setPortfolioItems(updatedItems);
   };
 
   return (
@@ -229,45 +246,51 @@ export default function PortfolioManagement() {
         </Card>
 
         {portfolioItems.map((item) => (
-          <Card key={item.id} className="overflow-hidden relative group h-[300px]">
-            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity z-10" />
-            <div className="absolute top-2 right-2 z-20 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
-              <Button
-                variant="outline"
-                size="icon"
-                className="h-8 w-8 bg-white"
-                onClick={() => handleEditClick(item)}
-              >
-                <Edit className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="outline"
-                size="icon"
-                className="h-8 w-8 bg-white"
-                onClick={() => handleDeleteClick(item)}
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            </div>
-            <div className="absolute inset-0">
-              <Image
-                src={item.imageUrl}
-                alt={item.title}
-                fill
-                className="object-cover"
-                sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-              />
-            </div>
-            <div className="absolute bottom-0 left-0 right-0 p-4 z-20 opacity-0 group-hover:opacity-100 transition-opacity">
-              <h3 className="text-white font-semibold text-lg">{item.title}</h3>
-              <p className="text-white/80 text-sm">{item.style}</p>
-            </div>
-            <div className="absolute left-2 top-1/2 transform -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity z-20">
-              <Button variant="outline" size="icon" className="h-8 w-8 bg-white">
-                <MoveVertical className="h-4 w-4" />
-              </Button>
-            </div>
-          </Card>
+          <Draggable
+            key={item.id}
+            axis="y"
+            onStop={(e, data) => handleDragEnd(item, data)}
+          >
+            <Card className="overflow-hidden relative group h-[300px]">
+              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity z-10" />
+              <div className="absolute top-2 right-2 z-20 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8 bg-white"
+                  onClick={() => handleEditClick(item)}
+                >
+                  <Edit className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8 bg-white"
+                  onClick={() => handleDeleteClick(item)}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+              <div className="absolute inset-0">
+                <Image
+                  src={item.imageUrl}
+                  alt={item.title}
+                  fill
+                  className="object-cover"
+                  sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                />
+              </div>
+              <div className="absolute bottom-0 left-0 right-0 p-4 z-20 opacity-0 group-hover:opacity-100 transition-opacity">
+                <h3 className="text-white font-semibold text-lg">{item.title}</h3>
+                <p className="text-white/80 text-sm">{item.style}</p>
+              </div>
+              <div className="absolute left-2 top-1/2 transform -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity z-20">
+                <Button variant="outline" size="icon" className="h-8 w-8 bg-white">
+                  <MoveVertical className="h-4 w-4" />
+                </Button>
+              </div>
+            </Card>
+          </Draggable>
         ))}
       </div>
 

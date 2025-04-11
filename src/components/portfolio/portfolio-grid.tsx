@@ -6,6 +6,7 @@ import Link from "next/link";
 import { clientDb } from "@/lib/firebase";
 import { collection, getDocs, query, limit as firestoreLimit, orderBy } from "firebase/firestore";
 import { Card, CardContent } from "@/components/ui/card";
+import Draggable from "react-draggable";
 
 // Define the portfolio item type
 interface PortfolioItem {
@@ -15,6 +16,7 @@ interface PortfolioItem {
   style: string;
   description: string;
   createdAt: Date;
+  order: number;
 }
 
 // For development/preview purposes - this will be replaced with real data from Firestore
@@ -26,6 +28,7 @@ const PLACEHOLDER_ITEMS: PortfolioItem[] = [
     style: "Geometric",
     description: "Precision geometric wolf design with fine line work and sacred geometry elements.",
     createdAt: new Date("2023-06-15"),
+    order: 1,
   },
   {
     id: "2",
@@ -34,6 +37,7 @@ const PLACEHOLDER_ITEMS: PortfolioItem[] = [
     style: "Traditional",
     description: "Bold traditional rose with vibrant colors and strong outlines.",
     createdAt: new Date("2023-08-22"),
+    order: 2,
   },
   {
     id: "3",
@@ -42,6 +46,7 @@ const PLACEHOLDER_ITEMS: PortfolioItem[] = [
     style: "Realism",
     description: "Photorealistic lion portrait with detailed shading and texture.",
     createdAt: new Date("2023-09-10"),
+    order: 3,
   },
   {
     id: "4",
@@ -50,6 +55,7 @@ const PLACEHOLDER_ITEMS: PortfolioItem[] = [
     style: "Watercolor",
     description: "Vibrant watercolor abstract design with fluid color transitions.",
     createdAt: new Date("2023-10-05"),
+    order: 4,
   },
   {
     id: "5",
@@ -58,6 +64,7 @@ const PLACEHOLDER_ITEMS: PortfolioItem[] = [
     style: "Japanese",
     description: "Traditional Japanese dragon with cloud work and vibrant colors.",
     createdAt: new Date("2023-11-12"),
+    order: 5,
   },
   {
     id: "6",
@@ -66,6 +73,7 @@ const PLACEHOLDER_ITEMS: PortfolioItem[] = [
     style: "Minimalist",
     description: "Clean, simple mountain line work with geometric elements.",
     createdAt: new Date("2023-12-01"),
+    order: 6,
   },
   {
     id: "7",
@@ -74,6 +82,7 @@ const PLACEHOLDER_ITEMS: PortfolioItem[] = [
     style: "Blackwork",
     description: "Intricate blackwork mandala with dotwork and geometric patterns.",
     createdAt: new Date("2024-01-18"),
+    order: 7,
   },
   {
     id: "8",
@@ -82,6 +91,7 @@ const PLACEHOLDER_ITEMS: PortfolioItem[] = [
     style: "Neo-Traditional",
     description: "Colorful neo-traditional fox with bold outlines and stylized elements.",
     createdAt: new Date("2024-02-05"),
+    order: 8,
   },
   {
     id: "9",
@@ -90,6 +100,7 @@ const PLACEHOLDER_ITEMS: PortfolioItem[] = [
     style: "Dotwork",
     description: "Detailed skull composed entirely of meticulously placed dots.",
     createdAt: new Date("2024-03-20"),
+    order: 9,
   },
 ];
 
@@ -115,8 +126,8 @@ export default function PortfolioGrid({ limit, style, isAdmin = false }: Portfol
           items = items.filter(item => item.style.toLowerCase() === style.toLowerCase());
         }
 
-        // Sort by most recent first
-        items.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+        // Sort by order
+        items.sort((a, b) => a.order - b.order);
 
         // Apply limit if provided
         if (limit && limit > 0) {
@@ -133,6 +144,17 @@ export default function PortfolioGrid({ limit, style, isAdmin = false }: Portfol
 
     fetchPortfolioItems();
   }, [limit, style]);
+
+  const handleDragEnd = (item: PortfolioItem, position: { x: number; y: number }) => {
+    const updatedItems = portfolioItems.map((portfolioItem) => {
+      if (portfolioItem.id === item.id) {
+        return { ...portfolioItem, order: position.y };
+      }
+      return portfolioItem;
+    });
+
+    setPortfolioItems(updatedItems);
+  };
 
   if (loading) {
     return (
@@ -153,29 +175,34 @@ export default function PortfolioGrid({ limit, style, isAdmin = false }: Portfol
   return (
     <div className="portfolio-grid">
       {portfolioItems.map((item) => (
-        <Link
+        <Draggable
           key={item.id}
-          href={`/portfolio/${item.id}`}
-          className="portfolio-item group overflow-hidden"
+          axis="y"
+          onStop={(e, data) => handleDragEnd(item, data)}
         >
-          <Card className="overflow-hidden border-0 transition-all duration-300 hover:shadow-lg">
-            <CardContent className="p-0 relative">
-              <div className="aspect-square w-full relative">
-                <Image
-                  src={item.imageUrl}
-                  alt={item.title}
-                  fill
-                  className="object-cover transition-transform duration-500 group-hover:scale-110"
-                  sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-                />
-              </div>
-              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-4">
-                <h3 className="text-white font-medium text-lg">{item.title}</h3>
-                <p className="text-white/80 text-sm">{item.style}</p>
-              </div>
-            </CardContent>
-          </Card>
-        </Link>
+          <Link
+            href={`/portfolio/${item.id}`}
+            className="portfolio-item group overflow-hidden"
+          >
+            <Card className="overflow-hidden border-0 transition-all duration-300 hover:shadow-lg">
+              <CardContent className="p-0 relative">
+                <div className="aspect-square w-full relative">
+                  <Image
+                    src={item.imageUrl}
+                    alt={item.title}
+                    fill
+                    className="object-cover transition-transform duration-500 group-hover:scale-110"
+                    sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                  />
+                </div>
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-4">
+                  <h3 className="text-white font-medium text-lg">{item.title}</h3>
+                  <p className="text-white/80 text-sm">{item.style}</p>
+                </div>
+              </CardContent>
+            </Card>
+          </Link>
+        </Draggable>
       ))}
     </div>
   );

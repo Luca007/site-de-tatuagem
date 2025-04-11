@@ -55,6 +55,14 @@ const TESTIMONIALS: Testimonial[] = [
     text: "This was my third tattoo here, and as always, the experience was excellent. The attention to detail and artistic vision continue to impress me. Already planning my next piece!",
     date: "November 20, 2023",
   },
+  {
+    id: "6",
+    name: "Sample User",
+    image: "/testimonials/sample.jpg",
+    rating: 4,
+    text: "This is a sample testimonial for testing purposes. The service was great and the tattoo turned out amazing!",
+    date: "October 10, 2023",
+  },
 ];
 
 export default function TestimonialSlider() {
