@@ -1,0 +1,95 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function userDocPath(uid) {
+      return /databases/$(database)/documents/users/$(uid);
+    }
+
+    function hasUserProfile() {
+      return isSignedIn() && exists(userDocPath(request.auth.uid));
+    }
+
+    function userRole() {
+      return hasUserProfile() ? get(userDocPath(request.auth.uid)).data.role : null;
+    }
+
+    function isAdmin() {
+      return userRole() == 'tattooer';
+    }
+
+    function isSelf(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function isChatParticipant(chatId) {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/chats/$(chatId))
+        && (request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants);
+    }
+
+    match /users/{uid} {
+      allow read: if isAdmin() || isSelf(uid);
+      allow create: if isSelf(uid);
+      allow update: if isAdmin() || isSelf(uid);
+      allow delete: if isAdmin();
+    }
+
+    match /portfolio/{uid} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+
+      match /{document=**} {
+        allow read: if true;
+        allow create, update, delete: if isAdmin();
+      }
+    }
+
+    match /availability/{uid} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+
+      match /{document=**} {
+        allow read: if true;
+        allow create, update, delete: if isAdmin();
+      }
+    }
+
+    match /bookings/{bookingId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /booking-events/{eventId} {
+      allow read, create, update, delete: if isAdmin();
+    }
+
+    match /chats/{chatId} {
+      allow read: if isAdmin() || (isSignedIn() && request.auth.uid in resource.data.participants);
+      allow create: if isAdmin()
+        || (isSignedIn()
+          && request.auth.uid in request.resource.data.participants
+          && request.resource.data.keys().hasOnly(['participants', 'lastMessageAt', 'lastMessagePreview']));
+      allow update: if isAdmin()
+        || (isSignedIn()
+          && request.auth.uid in resource.data.participants
+          && request.resource.data.participants == resource.data.participants
+          && request.resource.data.keys().hasOnly(['participants', 'lastMessageAt', 'lastMessagePreview']));
+      allow delete: if isAdmin();
+
+      match /messages/{messageId} {
+        allow read: if isAdmin() || isChatParticipant(chatId);
+        allow create: if isAdmin()
+          || (isSignedIn()
+            && isChatParticipant(chatId)
+            && request.auth.uid == request.resource.data.fromUid
+            && request.resource.data.keys().hasOnly(['fromUid', 'text', 'imageUrl', 'createdAt']));
+        allow update, delete: if isAdmin();
+      }
+    }
+  }
+}

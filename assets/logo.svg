@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 32" fill="none">
+  <defs>
+    <linearGradient id="g" x1="0" x2="160" y1="16" y2="16" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#9f7aea" />
+      <stop offset="1" stop-color="#48bb78" />
+    </linearGradient>
+  </defs>
+  <rect x="1" y="1" width="30" height="30" rx="8" stroke="url(#g)" stroke-width="2" fill="rgba(18,13,27,0.85)" />
+  <path d="M18 8c-3.866 0-7 3.134-7 7 0 3.114 2.029 5.744 4.842 6.637L18 24l2.158-2.363C22.971 20.744 25 18.114 25 15c0-3.866-3.134-7-7-7Zm0 11a4 4 0 1 1 0-8 4 4 0 0 1 0 8Z" fill="url(#g)" />
+  <text x="44" y="22" fill="#f8f7ff" font-family="'Segoe UI', 'Inter', sans-serif" font-size="20" font-weight="600">TattooSite</text>
+</svg>

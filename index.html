@@ -1,17 +1,482 @@
 <!doctype html>
 <html lang="pt-BR">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>InkMaster</title>
-    <link rel="stylesheet" href="./assets/css/styles.css" />
-  </head>
-  <body>
-    <div id="app" class="container" style="padding-top: 16px;"></div>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>TattooSite</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://www.googleapis.com" crossorigin>
+  <link rel="preconnect" href="https://uicdn.toast.com" crossorigin>
+  <link rel="stylesheet" href="https://uicdn.toast.com/calendar/latest/toastui-calendar.min.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="header-brand">
+      <button id="nav-toggle" class="nav-toggle" aria-expanded="false" aria-controls="site-nav">
+        <span class="sr-only">Alternar navegação</span>
+        <span class="nav-toggle-bar"></span>
+        <span class="nav-toggle-bar"></span>
+        <span class="nav-toggle-bar"></span>
+      </button>
+      <img src="assets/logo.svg" class="logo" alt="TattooSite" />
+    </div>
+    <nav class="main-nav" id="site-nav" data-open="0">
+      <button data-view="portfolio" class="nav-btn active" aria-current="page">Portfólio</button>
+      <button data-view="calendar" class="nav-btn">Agenda</button>
+      <button data-view="chat" class="nav-btn">Chat</button>
+      <button data-view="settings" class="nav-btn hidden" id="btn-settings">Configurações</button>
+    </nav>
+    <div class="auth-box">
+      <span id="user-info">Convidado</span>
+      <button id="btn-login" class="btn-primary">Entrar</button>
+      <button id="btn-logout" class="hidden">Sair</button>
+    </div>
+  </header>
 
-    <!-- Firebase Config (copy sample to firebase-config.js and edit) -->
-    <script type="module" src="./assets/js/firebase-config.js"></script>
-    <script type="module" src="./assets/js/firebase.js"></script>
-    <script type="module" src="./assets/js/app.js"></script>
-  </body>
+  <main id="app">
+    <section id="portfolio-view" class="view active">
+      <div class="toolbar">
+        <div class="left">
+          <button id="toggle-edit" class="hidden">Editar layout</button>
+          <button id="save-layout" class="hidden">Salvar alterações</button>
+        </div>
+        <div class="right">
+          <button id="configure-canvas" class="hidden">Dimensionar canvas</button>
+          <button id="add-block" class="hidden">Adicionar bloco</button>
+        </div>
+      </div>
+      <div id="canvas" class="canvas-grid" aria-live="polite"></div>
+    </section>
+
+    <section id="calendar-view" class="view">
+      <div class="toolbar">
+        <div class="left">
+          <button id="add-slot" class="hidden">Novo horário</button>
+          <button id="sync-calendar" class="hidden">Sincronizar eventos</button>
+        </div>
+        <div class="right">
+          <label class="timezone-picker">
+            <span>Fuso:</span>
+            <select id="calendar-timezone"></select>
+          </label>
+        </div>
+      </div>
+      <div class="calendar-layout">
+        <div class="calendar-column">
+          <div id="calendar" class="calendar-shell"></div>
+        </div>
+        <aside id="booking-panel" class="panel booking-panel"></aside>
+      </div>
+    </section>
+
+    <section id="chat-view" class="view">
+      <div class="chat-layout">
+        <div class="chat-sidebar">
+          <header class="chat-sidebar-header">
+            <div class="chat-sidebar-title">
+              <h2>Conversas</h2>
+              <p class="muted" id="chat-sidebar-hint">Gerencie seus atendimentos.</p>
+            </div>
+            <button id="start-chat" class="chat-cta hidden" type="button">
+              <span aria-hidden="true">＋</span>
+              <span>Nova conversa</span>
+            </button>
+          </header>
+          <div class="chat-search" id="chat-search-container">
+            <label class="chat-search-field">
+              <span class="sr-only">Buscar conversa</span>
+              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12.9 14.32a7 7 0 1 1 1.41-1.41l3.4 3.4a1 1 0 0 1-1.42 1.42zm-5.9-1.32a5 5 0 1 0 0-10 5 5 0 0 0 0 10z"/></svg>
+              <input id="chat-search" type="search" placeholder="Pesquisar cliente ou mensagem" autocomplete="off" />
+            </label>
+          </div>
+          <div id="chat-list" class="chat-list" aria-live="polite"></div>
+          <footer class="chat-sidebar-footer">
+            <p class="muted">Dica: solicitação de agenda abre um chat automático para alinhar detalhes.</p>
+          </footer>
+        </div>
+        <div class="chat-box hidden" id="chat-box">
+          <div class="chat-header">
+            <div class="chat-header-meta">
+              <div class="chat-avatar" id="chat-avatar" aria-hidden="true"></div>
+              <div>
+                <h3 id="chat-title">Chat</h3>
+                <div class="chat-subtitle" id="chat-participants"></div>
+              </div>
+            </div>
+            <div class="chat-header-actions">
+              <button id="mark-read" class="hidden" type="button">Marcar como lido</button>
+              <button id="open-chat-help" type="button" class="chat-help-btn" aria-label="Ver dicas do chat">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2Zm.25 15.5h-1.5v-1.5h1.5Zm1.794-5.555-.773.708a2.549 2.549 0 0 0-.771 1.653v.444h-1.5v-.444a4.032 4.032 0 0 1 1.221-2.612l.975-.9a1.78 1.78 0 0 0 .563-1.29 1.75 1.75 0 1 0-3.5 0h-1.5a3.25 3.25 0 1 1 5.65 2.19Z"/></svg>
+              </button>
+            </div>
+          </div>
+          <div id="chat-empty" class="chat-empty">
+            <svg viewBox="0 0 64 64" aria-hidden="true"><path d="M54 10H10a6 6 0 0 0-6 6v32a6 6 0 0 0 6 6h8v8l12-8h24a6 6 0 0 0 6-6V16a6 6 0 0 0-6-6Zm-4 24H14v-4h36Zm0-10H14v-4h36Z"/></svg>
+            <strong>Selecione uma conversa para começar</strong>
+            <p>Suas mensagens, confirmações de agenda e anexos ficam organizados aqui.</p>
+          </div>
+          <div id="messages" class="messages" aria-live="polite"></div>
+          <form id="send-form" class="chat-composer" autocomplete="off">
+            <label class="sr-only" for="msg">Escreva sua mensagem</label>
+            <div class="composer-field">
+              <textarea id="msg" rows="1" placeholder="Escreva uma mensagem ou descreva sua ideia"></textarea>
+              <div class="composer-hints">
+                <span class="hint">Use este espaço para combinar estilos, valores e cuidados.</span>
+              </div>
+            </div>
+            <label class="composer-attach" aria-label="Enviar imagem">
+              <input type="file" id="imgfile" accept="image/*" />
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16.5 6.5v9a4.5 4.5 0 0 1-9 0v-11a3 3 0 0 1 6 0v9a1.5 1.5 0 0 1-3 0v-8h-1.5v8a3 3 0 0 0 6 0v-9a4.5 4.5 0 0 0-9 0v11a6 6 0 0 0 12 0v-9Z"/></svg>
+            </label>
+            <button type="submit" class="composer-send">
+              <span>Enviar</span>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3.4 20.6 17.02-7.11a1 1 0 0 0 0-1.86L3.4 4.53a1 1 0 0 0-1.37 1.21l2.2 6.43a1 1 0 0 0 .95.68h6.37a.25.25 0 0 1 .25.25v.62a.25.25 0 0 1-.25.25H5.18a1 1 0 0 0-.95.68l-2.2 6.43a1 1 0 0 0 1.37 1.21Z"/></svg>
+            </button>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <section id="settings-view" class="view">
+      <div class="settings-columns">
+        <section class="panel" data-settings-visibility="signed">
+          <h2>Perfil</h2>
+          <form id="profile-form" autocomplete="off">
+            <label>
+              Nome artístico
+              <input id="profile-displayName" placeholder="Seu nome" />
+            </label>
+            <label>
+              Bio
+              <textarea id="profile-bio" rows="3" placeholder="Fale sobre seu trabalho"></textarea>
+            </label>
+            <label>
+              Avatar (URL)
+              <input id="profile-avatar" placeholder="https://" />
+            </label>
+            <button type="submit">Salvar perfil</button>
+          </form>
+        </section>
+
+        <section class="panel" data-settings-visibility="tattooer">
+          <h2>Upload GitHub</h2>
+          <p class="muted">O token fica armazenado apenas neste dispositivo.</p>
+          <form id="github-form" autocomplete="off">
+            <label>
+              Owner
+              <input id="gh-owner" placeholder="usuario" required />
+            </label>
+            <label>
+              Repositório
+              <input id="gh-repo" placeholder="portfolio-assets" required />
+            </label>
+            <label>
+              Branch
+              <input id="gh-branch" placeholder="main" />
+            </label>
+            <label>
+              Token (PAT)
+              <input id="gh-token" type="password" placeholder="ghp_" autocomplete="new-password" />
+            </label>
+            <button type="submit">Salvar configurações</button>
+            <button type="button" id="gh-clear" class="secondary">Apagar token local</button>
+          </form>
+        </section>
+
+        <section class="panel" data-settings-visibility="tattooer">
+          <h2>Preferências</h2>
+          <label class="toggle-row">
+            <input type="checkbox" id="pref-grid" checked />
+            <span>Mostrar grade no editor</span>
+          </label>
+          <label class="toggle-row">
+            <input type="checkbox" id="pref-guides" checked />
+            <span>Snapping inteligente</span>
+          </label>
+          <label class="toggle-row">
+            <input type="checkbox" id="pref-live" checked />
+            <span>Salvar automaticamente</span>
+          </label>
+        </section>
+
+        <section class="panel" data-settings-visibility="signed">
+          <h2>Sua conta</h2>
+          <p class="muted">Atualize seu email e senha com segurança.</p>
+          <p class="muted" id="account-provider-warning" hidden>Esta conta usa login social. Ajuste email e senha diretamente no provedor conectado.</p>
+          <form id="account-email-form" autocomplete="off" class="stacked-form">
+            <fieldset>
+              <legend class="sr-only">Alterar email</legend>
+              <label>
+                Novo email
+                <input type="email" id="account-email" placeholder="voce@email.com" required autocomplete="email" />
+              </label>
+              <label>
+                Confirme com a senha atual
+                <input type="password" id="account-email-password" placeholder="Senha atual" required autocomplete="current-password" />
+              </label>
+              <button type="submit">Atualizar email</button>
+            </fieldset>
+          </form>
+          <form id="account-password-form" autocomplete="off" class="stacked-form">
+            <fieldset>
+              <legend class="sr-only">Alterar senha</legend>
+              <label>
+                Senha atual
+                <input type="password" id="account-password-current" placeholder="Senha atual" required autocomplete="current-password" />
+              </label>
+              <label>
+                Nova senha
+                <input type="password" id="account-password-new" placeholder="Nova senha" required minlength="6" autocomplete="new-password" />
+              </label>
+              <label>
+                Confirmar nova senha
+                <input type="password" id="account-password-confirm" placeholder="Repita a nova senha" required minlength="6" autocomplete="new-password" />
+              </label>
+              <button type="submit">Atualizar senha</button>
+            </fieldset>
+          </form>
+        </section>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast" role="status" aria-live="assertive"></div>
+  <dialog id="auth-dialog" class="modal" aria-modal="true">
+    <div class="modal-shell">
+      <header class="modal-header">
+        <div>
+          <h2>Acesse sua conta</h2>
+          <p class="modal-subtitle">Gerencie reservas e personalize seu portfólio.</p>
+        </div>
+        <button type="button" id="auth-close" class="modal-close" aria-label="Fechar janela">×</button>
+      </header>
+      <nav class="auth-tabs" role="tablist">
+        <button type="button" data-auth-tab="login" role="tab" aria-selected="true">Entrar</button>
+        <button type="button" data-auth-tab="register" role="tab" aria-selected="false">Criar conta</button>
+      </nav>
+      <div class="auth-panels">
+        <form id="login-form" class="auth-form active" autocomplete="off" novalidate role="tabpanel">
+          <label>
+            Email
+            <input type="email" name="email" placeholder="voce@email.com" required autocomplete="email" />
+          </label>
+          <label>
+            Senha
+            <input type="password" name="password" placeholder="Sua senha" required autocomplete="current-password" />
+          </label>
+          <button type="submit" class="btn-primary">Entrar</button>
+          <button type="button" id="login-google" class="btn-secondary">Entrar com Google</button>
+        </form>
+        <form id="register-form" class="auth-form" autocomplete="off" novalidate role="tabpanel" hidden>
+          <label>
+            Nome artístico
+            <input type="text" name="displayName" placeholder="Como quer ser chamado" required autocomplete="name" />
+          </label>
+          <label>
+            Email
+            <input type="email" name="email" placeholder="voce@email.com" required autocomplete="email" />
+          </label>
+          <label>
+            Senha
+            <input type="password" name="password" placeholder="Mínimo 6 caracteres" required minlength="6" autocomplete="new-password" />
+          </label>
+          <label>
+            Confirmar senha
+            <input type="password" name="confirmPassword" placeholder="Repita a senha" required minlength="6" autocomplete="new-password" />
+          </label>
+          <button type="submit" class="btn-primary">Criar conta</button>
+        </form>
+      </div>
+      <p class="auth-disclaimer">Ao continuar você concorda com os termos de uso e a política de privacidade.</p>
+    </div>
+  </dialog>
+  <dialog id="block-picker" class="modal picker-modal" aria-modal="true">
+    <div class="modal-shell block-picker-shell">
+      <header class="modal-header">
+        <div>
+          <h2>Escolha um bloco</h2>
+          <p class="modal-subtitle">Visualize rapidamente cada estilo antes de adicionar ao layout.</p>
+        </div>
+        <button type="button" class="modal-close" data-block-close aria-label="Fechar seletor">×</button>
+      </header>
+      <div class="block-picker-grid" role="list">
+        <button type="button" class="block-card" data-block-option="Text" role="listitem">
+          <span class="block-card-title">Texto</span>
+          <div class="block-card-preview">
+            <div class="preview-line large"></div>
+            <div class="preview-line"></div>
+            <div class="preview-line short"></div>
+          </div>
+          <span class="block-card-hint">Ideal para títulos, descrições e chamadas.</span>
+        </button>
+        <button type="button" class="block-card" data-block-option="Image" role="listitem">
+          <span class="block-card-title">Imagem</span>
+          <div class="block-card-preview">
+            <div class="preview-image"></div>
+            <div class="preview-caption"></div>
+          </div>
+          <span class="block-card-hint">Destaque seus melhores trabalhos com fotos.</span>
+        </button>
+        <button type="button" class="block-card" data-block-option="Button" role="listitem">
+          <span class="block-card-title">Botão</span>
+          <div class="block-card-preview">
+            <div class="preview-pill"></div>
+          </div>
+          <span class="block-card-hint">Crie call-to-actions para orçamento ou agenda.</span>
+        </button>
+        <button type="button" class="block-card" data-block-option="Testimonial" role="listitem">
+          <span class="block-card-title">Depoimento</span>
+          <div class="block-card-preview">
+            <div class="preview-quote">“Atendimento impecável!”</div>
+            <div class="preview-line short"></div>
+          </div>
+          <span class="block-card-hint">Compartilhe feedbacks autênticos de clientes.</span>
+        </button>
+        <button type="button" class="block-card" data-block-option="ServiceList" role="listitem">
+          <span class="block-card-title">Serviços</span>
+          <div class="block-card-preview">
+            <div class="preview-item">
+              <span class="preview-dot"></span>
+              <span class="preview-item-line"></span>
+            </div>
+            <div class="preview-item">
+              <span class="preview-dot"></span>
+              <span class="preview-item-line long"></span>
+            </div>
+            <div class="preview-item">
+              <span class="preview-dot"></span>
+              <span class="preview-item-line"></span>
+            </div>
+          </div>
+          <span class="block-card-hint">Liste técnicas, estilos e diferenciais.</span>
+        </button>
+        <button type="button" class="block-card" data-block-option="Video" role="listitem">
+          <span class="block-card-title">Vídeo</span>
+          <div class="block-card-preview">
+            <div class="preview-video"></div>
+          </div>
+          <span class="block-card-hint">Incorpore reels, making of ou apresentações.</span>
+        </button>
+      </div>
+      <footer class="block-picker-footer">
+        <button type="button" class="btn-secondary" data-block-close>Cancelar</button>
+      </footer>
+    </div>
+  </dialog>
+  <dialog id="canvas-settings" class="modal editor-modal" aria-modal="true">
+    <form id="canvas-settings-form" class="modal-shell block-editor-shell" method="dialog">
+      <header class="modal-header">
+        <div>
+          <h2>Ajustar canvas</h2>
+          <p class="modal-subtitle">Defina margens e dimensões em porcentagem para adaptar ao viewport.</p>
+        </div>
+        <button type="button" class="modal-close" data-canvas-close aria-label="Fechar configurador">×</button>
+      </header>
+      <div class="block-editor-grid">
+        <section class="editor-layout-section">
+          <h3 class="editor-layout-title">Margens externas</h3>
+          <div class="editor-layout-grid">
+            <label class="editor-field">
+              <span>Margem superior (%)</span>
+              <input type="number" name="marginTopPct" data-canvas-field="marginTopPct" min="0" max="40" step="0.5" />
+              <small class="unit-hint">Aplicada como dvh.</small>
+            </label>
+            <label class="editor-field">
+              <span>Margem inferior (%)</span>
+              <input type="number" name="marginBottomPct" data-canvas-field="marginBottomPct" min="0" max="40" step="0.5" />
+              <small class="unit-hint">Aplicada como dvh.</small>
+            </label>
+            <label class="editor-field">
+              <span>Margem esquerda (%)</span>
+              <input type="number" name="marginLeftPct" data-canvas-field="marginLeftPct" min="0" max="40" step="0.5" />
+              <small class="unit-hint">Aplicada como dvw.</small>
+            </label>
+            <label class="editor-field">
+              <span>Margem direita (%)</span>
+              <input type="number" name="marginRightPct" data-canvas-field="marginRightPct" min="0" max="40" step="0.5" />
+              <small class="unit-hint">Aplicada como dvw.</small>
+            </label>
+          </div>
+        </section>
+        <section class="editor-layout-section">
+          <h3 class="editor-layout-title">Dimensões do quadro</h3>
+          <div class="editor-layout-grid">
+            <label class="editor-field">
+              <span>Largura (%)</span>
+              <input type="number" name="widthPct" data-canvas-field="widthPct" min="60" max="140" step="1" />
+              <small class="unit-hint">Define o espaço horizontal em dvw.</small>
+            </label>
+            <label class="editor-field">
+              <span>Altura mínima (%)</span>
+              <input type="number" name="heightPct" data-canvas-field="heightPct" min="60" max="200" step="1" />
+              <small class="unit-hint">Altura vertical em dvh.</small>
+            </label>
+            <label class="editor-field">
+              <span>Padding interno (%)</span>
+              <input type="number" name="paddingPct" data-canvas-field="paddingPct" min="0" max="20" step="0.5" />
+              <small class="unit-hint">Garante respiro dentro do canvas.</small>
+            </label>
+          </div>
+        </section>
+      </div>
+      <footer class="block-editor-footer">
+        <button type="button" class="btn-secondary" data-canvas-close>Cancelar</button>
+        <button type="submit" class="btn-primary">Aplicar ajustes</button>
+      </footer>
+    </form>
+  </dialog>
+  <dialog id="block-editor" class="modal editor-modal" aria-modal="true">
+    <div class="modal-shell block-editor-shell">
+      <header class="modal-header">
+        <div>
+          <h2 id="block-editor-title">Editar bloco</h2>
+          <p class="modal-subtitle">Use Markdown para personalizar títulos, destaques e descrições.</p>
+        </div>
+        <button type="button" class="modal-close" data-editor-close aria-label="Fechar editor">×</button>
+      </header>
+      <form id="block-editor-form" class="block-editor-form" autocomplete="off" novalidate>
+        <div class="block-editor-grid">
+          <section class="editor-column">
+            <h3>Conteúdo</h3>
+            <div id="block-editor-fields" class="editor-fields"></div>
+          </section>
+          <section class="editor-column">
+            <h3>Pré-visualização</h3>
+            <div id="block-editor-preview" class="editor-preview"></div>
+          </section>
+        </div>
+        <footer class="block-editor-footer">
+          <button type="button" class="btn-secondary" data-editor-close>Cancelar</button>
+          <button type="submit" class="btn-primary">Salvar alterações</button>
+        </footer>
+      </form>
+    </div>
+  </dialog>
+  <dialog id="slot-dialog">
+    <form id="slot-form" autocomplete="off">
+      <h3>Novo horário disponível</h3>
+      <label>
+        Data
+        <input type="date" id="slot-date" required />
+      </label>
+      <label>
+        Hora (fuso selecionado)
+        <input type="time" id="slot-time" step="900" required />
+      </label>
+      <label>
+        Duração (min)
+        <input type="number" id="slot-duration" min="15" step="15" value="60" required />
+      </label>
+      <menu>
+        <button type="button" class="secondary" data-slot-cancel>Cancelar</button>
+        <button type="submit" class="btn-primary">Adicionar</button>
+      </menu>
+    </form>
+  </dialog>
+
+  <script type="module" src="js/main.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/interactjs/dist/interact.min.js"></script>
+  <script src="https://uicdn.toast.com/calendar/latest/toastui-calendar.min.js"></script>
+</body>
 </html>
