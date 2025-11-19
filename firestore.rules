@@ -28,8 +28,22 @@ service cloud.firestore {
 
     function isChatParticipant(chatId) {
       return isSignedIn()
-        && exists(/databases/$(database)/documents/chats/$(chatId))
-        && (request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants);
+        && chatExists(chatId)
+        && (request.auth.uid in getChat(chatId).data.participants);
+    }
+
+    function getChat(chatId) {
+      return get(/databases/$(database)/documents/chats/$(chatId));
+    }
+
+    function chatExists(chatId) {
+      return exists(/databases/$(database)/documents/chats/$(chatId));
+    }
+
+    function canReadChat(chatId) {
+      return isAdmin()
+        || (chatExists(chatId) && isChatParticipant(chatId))
+        || (!chatExists(chatId) && isSignedIn());
     }
 
     match /users/{uid} {
@@ -69,16 +83,16 @@ service cloud.firestore {
     }
 
     match /chats/{chatId} {
-      allow read: if isAdmin() || (isSignedIn() && request.auth.uid in resource.data.participants);
+      allow read: if canReadChat(chatId);
       allow create: if isAdmin()
         || (isSignedIn()
           && request.auth.uid in request.resource.data.participants
-          && request.resource.data.keys().hasOnly(['participants', 'lastMessageAt', 'lastMessagePreview']));
+          && request.resource.data.keys().hasOnly(['participants', 'lastMessageAt', 'lastMessagePreview', 'createdAt']));
       allow update: if isAdmin()
         || (isSignedIn()
           && request.auth.uid in resource.data.participants
           && request.resource.data.participants == resource.data.participants
-          && request.resource.data.keys().hasOnly(['participants', 'lastMessageAt', 'lastMessagePreview']));
+          && request.resource.data.keys().hasOnly(['participants', 'lastMessageAt', 'lastMessagePreview', 'createdAt']));
       allow delete: if isAdmin();
 
       match /messages/{messageId} {
@@ -87,7 +101,7 @@ service cloud.firestore {
           || (isSignedIn()
             && isChatParticipant(chatId)
             && request.auth.uid == request.resource.data.fromUid
-            && request.resource.data.keys().hasOnly(['fromUid', 'text', 'imageUrl', 'createdAt']));
+            && request.resource.data.keys().hasOnly(['fromUid', 'text', 'imageUrl', 'createdAt', 'slotId', 'durationMin', 'timezone', 'type']));
         allow update, delete: if isAdmin();
       }
     }

@@ -18,6 +18,9 @@ const fileInput = document.getElementById('imgfile');
 const chatTitle = document.getElementById('chat-title');
 const chatParticipants = document.getElementById('chat-participants');
 const startChatBtn = document.getElementById('start-chat');
+const chatClientCard = document.getElementById('chat-client-card');
+const chatClientCardCopy = document.getElementById('chat-client-card-copy');
+const chatClientCardBtn = document.getElementById('chat-client-card-btn');
 
 const state = {
   tattooerUid: null,
@@ -39,6 +42,7 @@ export function initChat(tattooerUid) {
   subscribeChats();
   bindForm();
   bindSearch();
+  bindClientCardButton();
   showEmptyChatState();
 }
 
@@ -63,6 +67,9 @@ function subscribeChats() {
       state.chats = snapshot.docs
         .map((doc) => ({ id: doc.id, ...doc.data() }))
         .sort((a, b) => (b.lastMessageAt || 0) - (a.lastMessageAt || 0));
+      if (shouldLimitToCurrentTattooer()) {
+        ensureClientChatForCurrentTattooer();
+      }
       renderChatList();
       autoOpenPrimaryChat();
     },
@@ -88,6 +95,32 @@ function renderChatList() {
   activateChatButtons();
 }
 
+function visibleChats() {
+  if (isTattooer()) return state.chats;
+  if (!state.tattooerUid) return [];
+  return state.chats.filter((chat) => chat.participants.includes(state.tattooerUid));
+}
+
+function shouldLimitToCurrentTattooer() {
+  return Boolean(
+    currentUser &&
+      !isTattooer() &&
+      state.tattooerUid &&
+      currentUser.uid !== state.tattooerUid
+  );
+}
+
+async function ensureClientChatForCurrentTattooer() {
+  if (!shouldLimitToCurrentTattooer()) return;
+  const alreadyExists = visibleChats().length > 0;
+  if (alreadyExists) return;
+  try {
+    await ensureChatDocument(state.tattooerUid, currentUser.uid);
+  } catch (error) {
+    console.warn('Falha ao preparar chat do cliente.', error);
+  }
+}
+
 function deriveChatListState() {
   if (!currentUser) {
     return {
@@ -97,7 +130,9 @@ function deriveChatListState() {
     };
   }
 
-  if (!state.chats.length) {
+  const scopedChats = visibleChats();
+
+  if (!scopedChats.length) {
     return isTattooer()
       ? {
           type: 'placeholder',
@@ -107,7 +142,7 @@ function deriveChatListState() {
       : {
           type: 'placeholder',
           message: 'Nenhuma conversa iniciada ainda.',
-          hint: 'Use "Falar com o estúdio" para iniciar um chat com o tatuador.'
+          hint: 'Envie a primeira mensagem para conversar com o tatuador.'
         };
   }
 
@@ -149,9 +184,10 @@ function renderChatPlaceholder(message, emptyHint) {
 }
 
 function filteredChats() {
-  if (!isTattooer() || !state.searchTerm) return state.chats;
+  const base = visibleChats();
+  if (!isTattooer() || !state.searchTerm) return base;
   const term = state.searchTerm.toLowerCase();
-  return state.chats.filter((chat) => {
+  return base.filter((chat) => {
     const label = chatDisplayName(chat).toLowerCase();
     const preview = (chat.lastMessagePreview || '').toLowerCase();
     return label.includes(term) || preview.includes(term) || chat.id.toLowerCase().includes(term);
@@ -161,6 +197,7 @@ function filteredChats() {
 function chatDisplayName(chat) {
   const other = chat.participants.find((uid) => uid !== currentUser?.uid);
   if (!other) return 'Você';
+  if (!isTattooer() && other === state.tattooerUid) return 'Seu tatuador';
   return getContactName(other);
 }
 
@@ -172,6 +209,11 @@ function getContactName(uid) {
     fetchContactName(uid);
   }
   return uid.slice(0, 6);
+}
+
+function updateClientCardCopy() {
+  if (!chatClientCardCopy) return;
+  chatClientCardCopy.textContent = 'Envie referências e tire dúvidas diretamente com o estúdio.';
 }
 
 async function fetchContactName(uid) {
@@ -254,9 +296,24 @@ function bindSearch() {
   });
 }
 
+function bindClientCardButton() {
+  if (!chatClientCardBtn || chatClientCardBtn.dataset.bound) return;
+  chatClientCardBtn.dataset.bound = '1';
+  chatClientCardBtn.addEventListener('click', () => openOrCreateChat());
+}
+
 function configureLayoutForRole() {
   const tattooerView = isTattooer();
+  configureSharedLayout(tattooerView);
+  if (!tattooerView) {
+    applyClientLayout();
+  }
+}
+
+function configureSharedLayout(tattooerView) {
   chatSearchContainer?.classList.toggle('hidden', !tattooerView);
+  chatView?.classList.toggle('client-chat', !tattooerView);
+  chatClientCard?.classList.toggle('hidden', tattooerView);
   if (chatSidebarHint) {
     chatSidebarHint.textContent = tattooerView
       ? 'Selecione um cliente para responder.'
@@ -267,10 +324,12 @@ function configureLayoutForRole() {
     const label = startChatBtn.querySelector('span:last-child');
     if (label) label.textContent = tattooerView ? 'Nova conversa' : 'Falar com o estúdio';
   }
-  if (!tattooerView) {
-    state.searchTerm = '';
-    if (chatSearchInput) chatSearchInput.value = '';
-  }
+}
+
+function applyClientLayout() {
+  state.searchTerm = '';
+  if (chatSearchInput) chatSearchInput.value = '';
+  updateClientCardCopy();
 }
 
 function showEmptyChatState(message = 'Selecione uma conversa para começar.') {
@@ -300,14 +359,18 @@ function participantsLabel(participants = []) {
 }
 
 function autoOpenPrimaryChat() {
-  if (!state.chats.length) {
+  const chats = visibleChats();
+  if (!chats.length) {
     state.activeChat = null;
-  showEmptyChatState(isTattooer() ? 'Selecione uma conversa para visualizar as mensagens.' : 'Use "Falar com o estúdio" para abrir um chat.');
+    const emptyMessage = isTattooer()
+      ? 'Selecione uma conversa para visualizar as mensagens.'
+      : 'Envie a primeira mensagem para conversar com o estúdio.';
+    showEmptyChatState(emptyMessage);
     highlightActiveChatButton(null);
     return;
   }
 
-  if (state.activeChat && state.chats.some((chat) => chat.id === state.activeChat.id)) {
+  if (state.activeChat && chats.some((chat) => chat.id === state.activeChat.id)) {
     highlightActiveChatButton(state.activeChat.id);
     return;
   }
@@ -318,7 +381,7 @@ function autoOpenPrimaryChat() {
     return;
   }
 
-  openChat(state.chats[0].id);
+  openChat(chats[0].id);
 }
 
 async function handleSendMessage(event) {
@@ -397,6 +460,15 @@ export async function openOrCreateChat() {
     showToast('Entre para iniciar uma conversa.', 'info');
     return;
   }
+  if (isTattooer()) {
+    const nextChat = state.chats[0];
+    if (!nextChat) {
+      showToast('Nenhum cliente iniciou conversa ainda.', 'info');
+      return;
+    }
+    openChat(nextChat.id);
+    return;
+  }
   const tattooer = state.tattooerUid;
   if (!tattooer) {
     showToast('Nenhum tatuador selecionado.', 'error');
@@ -450,19 +522,16 @@ async function ensureChatDocument(tattooerUid, clientUid) {
   const participants = [tattooerUid, clientUid].sort();
   const chatId = composeChatId(tattooerUid, clientUid);
   const chatRef = doc(db, 'chats', chatId);
-  const snapshot = await getDoc(chatRef);
-  if (!snapshot.exists()) {
-    await setDoc(
-      chatRef,
-      {
-        participants,
-        createdAt: Date.now(),
-        lastMessageAt: Date.now(),
-        lastMessagePreview: ''
-      },
-      { merge: true }
-    );
-  }
+  await setDoc(
+    chatRef,
+    {
+      participants,
+      createdAt: Date.now(),
+      lastMessageAt: Date.now(),
+      lastMessagePreview: ''
+    },
+    { merge: true }
+  );
   return { chatId, participants };
 }
 
