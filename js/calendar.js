@@ -4,6 +4,41 @@ import { showToast } from './ui.js';
 import { currentUser, isTattooer } from './auth.js';
 import { sendBookingRequestMessage, openOrCreateChat } from './chat.js';
 
+const CALENDAR_CALENDARS = [
+  {
+    id: 'open',
+    name: 'Disponível',
+    backgroundColor: 'rgba(159, 122, 234, 0.18)',
+    borderColor: 'rgba(159, 122, 234, 0.45)',
+    dragBackgroundColor: 'rgba(159, 122, 234, 0.3)',
+    color: '#1c1f2a'
+  },
+  {
+    id: 'blocked',
+    name: 'Bloqueado',
+    backgroundColor: 'rgba(28, 27, 38, 0.2)',
+    borderColor: 'rgba(28, 27, 38, 0.35)',
+    dragBackgroundColor: 'rgba(28, 27, 38, 0.45)',
+    color: '#4a4d63'
+  },
+  {
+    id: 'booking-pending',
+    name: 'Pedido pendente',
+    backgroundColor: 'rgba(246, 173, 85, 0.22)',
+    borderColor: 'rgba(246, 173, 85, 0.45)',
+    dragBackgroundColor: 'rgba(246, 173, 85, 0.35)',
+    color: '#7a4a06'
+  },
+  {
+    id: 'booking-confirmed',
+    name: 'Confirmado',
+    backgroundColor: 'rgba(72, 187, 120, 0.22)',
+    borderColor: 'rgba(72, 187, 120, 0.45)',
+    dragBackgroundColor: 'rgba(72, 187, 120, 0.35)',
+    color: '#0f4224'
+  }
+];
+
 const calendarRoot = document.getElementById('calendar');
 const addSlotBtn = document.getElementById('add-slot');
 const bookingPanel = document.getElementById('booking-panel');
@@ -51,6 +86,14 @@ async function ensureCalendar() {
     defaultView: 'month',
     usageStatistics: false
   });
+  state.calendar.setCalendars?.(CALENDAR_CALENDARS);
+  state.calendar.setOptions?.({
+    month: {
+      startDayOfWeek: 1,
+      narrowWeekend: true,
+      daynames: ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
+    }
+  });
   state.calendar.on('selectDateTime', ({ start }) => onSelectSlot(parseDate(start)));
   state.calendar.on('clickSchedule', ({ schedule }) => onClickSlot(schedule?.raw));
 }
@@ -76,18 +119,24 @@ function renderSlots() {
 function eventFor(slot, timezone) {
   const start = new Date(slot.id);
   const end = new Date(start.getTime() + (slot.durationMin || 60) * 60000);
+  const booking = getActiveBooking(slot.id);
+  const statusId = slot.status === 'blocked'
+    ? 'blocked'
+    : booking
+      ? `booking-${booking.status === 'confirmed' ? 'confirmed' : 'pending'}`
+      : 'open';
   return {
     id: slot.id,
-    calendarId: slot.status,
-    title: titleFor(slot),
+    calendarId: statusId,
+    category: 'time',
+    title: titleFor(slot, booking),
     start: convertTimezone(start, timezone),
     end: convertTimezone(end, timezone),
     raw: slot
   };
 }
 
-function titleFor(slot) {
-  const booking = state.bookings.find((item) => item.slotId === slot.id && item.status !== 'cancelled');
+function titleFor(slot, booking = getActiveBooking(slot.id)) {
   if (slot.status === 'blocked') return 'Indisponível';
   if (booking) return `Reservado (${bookingStatusLabel(booking.status)})`;
   return 'Disponível';
@@ -309,7 +358,7 @@ function renderTattooerSlotSummary(timezone) {
     return '<div class="empty-state"><strong>Nenhum horário selecionado.</strong><span>Toque em um horário da agenda para visualizar detalhes ou bloquear.</span></div>';
   }
   const statusLabel = slot.status === 'blocked' ? 'Bloqueado' : 'Disponível';
-  const booking = state.bookings.find((entry) => entry.slotId === slot.id && entry.status !== 'cancelled');
+  const booking = getActiveBooking(slot.id);
   const bookingLine = booking ? `Cliente: ${escapeHtml(booking.clientUid)}` : 'Sem pedidos vinculados.';
   const toggleLabel = slot.status === 'blocked' ? 'Reabrir horário' : 'Bloquear horário';
   return `
@@ -514,4 +563,8 @@ function buildSlotIso(dateValue, timeValue) {
   const candidate = new Date(`${dateValue}T${timeValue}`);
   if (Number.isNaN(candidate.getTime())) return null;
   return candidate.toISOString();
+}
+
+function getActiveBooking(slotId) {
+  return state.bookings.find((booking) => booking.slotId === slotId && booking.status !== 'cancelled');
 }
