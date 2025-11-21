@@ -1,4 +1,4 @@
-import { db, doc, getDoc, setDoc, collection, addDoc, serverTimestamp, onSnapshot, query, orderBy, where } from './firebase.js';
+import { db, doc, getDoc, getDocs, setDoc, collection, addDoc, serverTimestamp, onSnapshot, query, orderBy, where } from './firebase.js';
 import { addWatermark } from './watermark.js';
 import { githubUploadConfigured, uploadToGitHub, buildCdnUrl } from './github.js';
 import { currentUser, isTattooer } from './auth.js';
@@ -21,6 +21,9 @@ const startChatBtn = document.getElementById('start-chat');
 const chatClientCard = document.getElementById('chat-client-card');
 const chatClientCardCopy = document.getElementById('chat-client-card-copy');
 const chatClientCardBtn = document.getElementById('chat-client-card-btn');
+const chatStartModal = document.getElementById('chat-start-modal');
+const chatStartResults = document.getElementById('chat-start-results');
+const chatStartSearch = document.getElementById('chat-start-search');
 
 const state = {
   tattooerUid: null,
@@ -30,7 +33,10 @@ const state = {
   chats: [],
   contactNames: new Map(),
   pendingContacts: new Set(),
-  searchTerm: ''
+  searchTerm: '',
+  userDirectory: [],
+  userDirectoryLoaded: false,
+  userDirectorySearch: ''
 };
 
 export function initChat(tattooerUid) {
@@ -38,12 +44,18 @@ export function initChat(tattooerUid) {
   state.contactNames.clear();
   state.pendingContacts.clear();
   state.searchTerm = '';
+  state.userDirectory = [];
+  state.userDirectoryLoaded = false;
+  state.userDirectorySearch = '';
   configureLayoutForRole();
   subscribeChats();
   bindForm();
   bindSearch();
   bindClientCardButton();
+  bindStartChatButton();
+  bindChatStartModal();
   showEmptyChatState();
+  ensureClientChatForCurrentTattooer({ openAfterCreate: true });
 }
 
 function subscribeChats() {
@@ -68,7 +80,7 @@ function subscribeChats() {
         .map((doc) => ({ id: doc.id, ...doc.data() }))
         .sort((a, b) => (b.lastMessageAt || 0) - (a.lastMessageAt || 0));
       if (shouldLimitToCurrentTattooer()) {
-        ensureClientChatForCurrentTattooer();
+        ensureClientChatForCurrentTattooer({ openAfterCreate: true });
       }
       renderChatList();
       autoOpenPrimaryChat();
@@ -110,12 +122,17 @@ function shouldLimitToCurrentTattooer() {
   );
 }
 
-async function ensureClientChatForCurrentTattooer() {
+async function ensureClientChatForCurrentTattooer({ openAfterCreate = false } = {}) {
   if (!shouldLimitToCurrentTattooer()) return;
-  const alreadyExists = visibleChats().length > 0;
-  if (alreadyExists) return;
+  const chatId = composeChatId(state.tattooerUid, currentUser.uid);
+  const alreadyExists = visibleChats().some((chat) => chat.id === chatId);
+  if (alreadyExists) {
+    if (openAfterCreate) await openChat(chatId);
+    return;
+  }
   try {
     await ensureChatDocument(state.tattooerUid, currentUser.uid);
+    if (openAfterCreate) await openChat(chatId);
   } catch (error) {
     console.warn('Falha ao preparar chat do cliente.', error);
   }
@@ -216,6 +233,88 @@ function updateClientCardCopy() {
   chatClientCardCopy.textContent = 'Envie referências e tire dúvidas diretamente com o estúdio.';
 }
 
+function handleChatStartSearch() {
+  state.userDirectorySearch = chatStartSearch?.value?.trim().toLowerCase() || '';
+  renderChatStartResults();
+}
+
+function filteredUserDirectory() {
+  const base = state.userDirectory.filter((user) => user.id !== state.tattooerUid);
+  if (!state.userDirectorySearch) return base;
+  const term = state.userDirectorySearch;
+  return base.filter((user) => {
+    return (
+      user.displayName.toLowerCase().includes(term) ||
+      user.email.toLowerCase().includes(term)
+    );
+  });
+}
+
+function renderChatStartResults() {
+  if (!chatStartResults) return;
+  const users = filteredUserDirectory();
+  if (!users.length) {
+    chatStartResults.innerHTML = '<p class="chat-start-empty">Nenhum cliente encontrado.</p>';
+    return;
+  }
+  chatStartResults.innerHTML = users
+    .map((user) => {
+      const roleLabel = user.role === 'tattooer' ? 'Tatuador' : 'Cliente';
+      return `
+        <button type="button" data-chat-user="${user.id}" role="option">
+          <span class="user-meta">
+            <strong>${escapeHtml(user.displayName)}</strong>
+            <small>${escapeHtml(user.email)}</small>
+          </span>
+          <span class="user-role">${roleLabel}</span>
+        </button>
+      `;
+    })
+    .join('');
+  chatStartResults.querySelectorAll('[data-chat-user]').forEach((button) => {
+    button.addEventListener('click', () => handleDirectorySelection(button.dataset.chatUser));
+  });
+}
+
+function closeChatDirectory() {
+  chatStartModal?.close();
+}
+
+async function handleDirectorySelection(uid) {
+  if (!uid || uid === state.tattooerUid) return;
+  closeChatDirectory();
+  try {
+    const { chatId } = await ensureChatDocument(state.tattooerUid, uid);
+    await openChat(chatId);
+  } catch (error) {
+    console.warn('Erro ao abrir conversa com cliente.', error);
+    showToast('Não foi possível iniciar o chat.', 'error');
+  }
+}
+
+async function ensureUserDirectory() {
+  if (state.userDirectoryLoaded || !isTattooer()) return state.userDirectory;
+  const snapshot = await getDocs(collection(db, 'users'));
+  state.userDirectory = snapshot.docs
+    .map((doc) => ({ id: doc.id, ...doc.data(), displayName: doc.data().displayName || doc.data().email || 'Sem nome' }))
+    .sort((a, b) => a.displayName.localeCompare(b.displayName, 'pt-BR'));
+  state.userDirectoryLoaded = true;
+  return state.userDirectory;
+}
+
+export async function openChatDirectory() {
+  if (!isTattooer()) {
+    openOrCreateChat();
+    return;
+  }
+  await ensureUserDirectory();
+  state.userDirectorySearch = '';
+  if (chatStartSearch) chatStartSearch.value = '';
+  renderChatStartResults();
+  chatStartModal?.showModal();
+  chatStartSearch?.focus();
+}
+
 async function fetchContactName(uid) {
   try {
     const snapshot = await getDoc(doc(db, 'users', uid));
@@ -262,12 +361,13 @@ function renderMessages(list) {
 }
 
 function buildMessageMarkup(msg) {
-  const mine = msg.fromUid === currentUser?.uid ? ' you' : '';
+  const mine = msg.fromUid === currentUser?.uid;
+  const direction = mine ? 'you' : 'them';
   const text = msg.text ? `<p>${escapeHtml(msg.text)}</p>` : '';
   const image = msg.imageUrl ? `<img src="${msg.imageUrl}" alt="Imagem enviada" />` : '';
   const createdAt = msg.createdAt?.toDate ? msg.createdAt.toDate() : new Date(msg.createdAt || Date.now());
   return `
-    <div class="message${mine}">
+    <div class="message ${direction}">
       ${text}
       ${image}
       <span class="timestamp">${createdAt.toLocaleString()}</span>
@@ -302,6 +402,27 @@ function bindClientCardButton() {
   chatClientCardBtn.addEventListener('click', () => openOrCreateChat());
 }
 
+function bindStartChatButton() {
+  if (!startChatBtn || startChatBtn.dataset.bound) return;
+  startChatBtn.dataset.bound = '1';
+  startChatBtn.addEventListener('click', () => openChatDirectory());
+}
+
+function bindChatStartModal() {
+  if (chatStartModal && !chatStartModal.dataset.bound) {
+    chatStartModal.dataset.bound = '1';
+    chatStartModal.addEventListener('cancel', (event) => {
+      event.preventDefault();
+      closeChatDirectory();
+    });
+    chatStartModal.querySelector('[data-chat-start-close]')?.addEventListener('click', () => closeChatDirectory());
+  }
+  if (chatStartSearch && !chatStartSearch.dataset.bound) {
+    chatStartSearch.dataset.bound = '1';
+    chatStartSearch.addEventListener('input', handleChatStartSearch);
+  }
+}
+
 function configureLayoutForRole() {
   const tattooerView = isTattooer();
   configureSharedLayout(tattooerView);
@@ -311,19 +432,29 @@ function configureLayoutForRole() {
 }
 
 function configureSharedLayout(tattooerView) {
+  toggleSharedElements(tattooerView);
+  updateSidebarHint(tattooerView);
+  updateStartChatButton(tattooerView);
+}
+
+function toggleSharedElements(tattooerView) {
   chatSearchContainer?.classList.toggle('hidden', !tattooerView);
   chatView?.classList.toggle('client-chat', !tattooerView);
   chatClientCard?.classList.toggle('hidden', tattooerView);
-  if (chatSidebarHint) {
-    chatSidebarHint.textContent = tattooerView
-      ? 'Selecione um cliente para responder.'
-      : 'Converse diretamente com o estúdio para tirar dúvidas.';
-  }
-  if (startChatBtn) {
-    startChatBtn.classList.remove('hidden');
-    const label = startChatBtn.querySelector('span:last-child');
-    if (label) label.textContent = tattooerView ? 'Nova conversa' : 'Falar com o estúdio';
-  }
+}
+
+function updateSidebarHint(tattooerView) {
+  if (!chatSidebarHint) return;
+  chatSidebarHint.textContent = tattooerView
+    ? 'Selecione um cliente para responder.'
+    : 'Converse diretamente com o estúdio para tirar dúvidas.';
+}
+
+function updateStartChatButton(tattooerView) {
+  if (!startChatBtn) return;
+  startChatBtn.classList.remove('hidden');
+  const label = startChatBtn.querySelector('span:last-child');
+  if (label) label.textContent = tattooerView ? 'Nova conversa' : 'Falar com o estúdio';
 }
 
 function applyClientLayout() {
@@ -550,8 +681,10 @@ function formatRelative(ts) {
 
 document.addEventListener('auth:ready', () => {
   subscribeChats();
+  ensureClientChatForCurrentTattooer({ openAfterCreate: true });
 });
 
 document.addEventListener('role:changed', () => {
   configureLayoutForRole();
+  ensureClientChatForCurrentTattooer({ openAfterCreate: true });
 });

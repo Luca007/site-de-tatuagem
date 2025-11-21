@@ -1070,20 +1070,32 @@ body:not([data-editing="1"]) .block .handle {
 }
 
 .message {
+  position: relative;
   display: inline-grid;
   gap: 8px;
-  align-self: flex-start;
-  padding: 12px 14px;
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.08);
+  padding: 12px 16px;
+  border-radius: 16px;
   max-width: min(420px, 78%);
   word-break: break-word;
-  box-shadow: 0 12px 24px -18px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 20px 40px -24px rgba(0, 0, 0, 0.8);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.message.them {
+  justify-self: flex-start;
+  border-bottom-left-radius: 4px;
 }
 
 .message.you {
   justify-self: flex-end;
-  background: rgba(72, 187, 120, 0.2);
+  border-bottom-right-radius: 4px;
+  background: linear-gradient(120deg, rgba(159, 122, 234, 0.9), rgba(118, 75, 224, 0.85));
+}
+
+.message.you p,
+.message.you span,
+.message.you small {
+  color: #fdf8ff;
 }
 
 .message .timestamp {
@@ -1186,6 +1198,69 @@ body:not([data-editing="1"]) .block .handle {
 .composer-send:hover {
   transform: translateY(-1px);
   box-shadow: 0 10px 30px -20px rgba(159, 122, 234, 0.9);
+}
+
+.chat-start-shell {
+  width: min(480px, 92vw);
+}
+
+.chat-start-search label {
+  display: flex;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(32, 32, 38, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+#chat-start-search {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  width: 100%;
+}
+
+.chat-start-results {
+  display: grid;
+  gap: 10px;
+  max-height: 360px;
+  overflow-y: auto;
+}
+
+.chat-start-results button {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: rgba(24, 24, 29, 0.9);
+  color: inherit;
+  cursor: pointer;
+  transition: border-color 0.2s ease, transform 0.2s ease;
+}
+
+.chat-start-results button:hover {
+  border-color: var(--accent);
+  transform: translateY(-1px);
+}
+
+.chat-start-results .user-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: left;
+}
+
+.chat-start-results .user-meta strong {
+  color: #fff;
+}
+
+.chat-start-empty {
+  text-align: center;
+  padding: 30px 10px;
+  color: rgba(255, 255, 255, 0.6);
 }
 
 .stacked-form {

@@ -29,6 +29,24 @@
     </nav>
     <div class="auth-box">
       <span id="user-info">Convidado</span>
+  <dialog id="chat-start-modal" class="modal chat-start-modal" aria-modal="true">
+    <div class="modal-shell chat-start-shell">
+      <header class="modal-header">
+        <div>
+          <h2>Iniciar nova conversa</h2>
+          <p class="modal-subtitle">Escolha qualquer cliente cadastrado para enviar uma mensagem.</p>
+        </div>
+        <button type="button" class="modal-close" data-chat-start-close aria-label="Fechar seletor de clientes">×</button>
+      </header>
+      <div class="chat-start-search">
+        <label>
+          <span class="sr-only">Buscar cliente</span>
+          <input id="chat-start-search" type="search" placeholder="Buscar por nome ou email" autocomplete="off" />
+        </label>
+      </div>
+      <div id="chat-start-results" class="chat-start-results" role="listbox" aria-live="polite"></div>
+    </div>
+  </dialog>
       <button id="btn-login" class="btn-primary">Entrar</button>
       <button id="btn-logout" class="hidden">Sair</button>
     </div>
