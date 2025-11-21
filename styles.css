@@ -460,6 +460,10 @@ body:not([data-editing="1"]) .block .handle {
   display: none;
 }
 
+body:not([data-editing="1"]) .block .block-delete {
+  display: none;
+}
+
 .block {
   position: absolute;
   background: var(--surface-raised);
@@ -470,6 +474,46 @@ body:not([data-editing="1"]) .block .handle {
   overflow: hidden;
   box-shadow: var(--shadow-soft);
   transition: box-shadow var(--transition-medium), transform var(--transition-medium);
+}
+
+body[data-editing="1"] .block.is-selected {
+  border-color: color-mix(in srgb, var(--accent-soft) 70%, transparent);
+  box-shadow: var(--shadow-pop);
+  outline: 1.5px dashed color-mix(in srgb, var(--accent) 68%, transparent);
+  outline-offset: 6px;
+}
+
+.block .block-delete {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-pill);
+  border: 1px solid color-mix(in srgb, var(--color-danger-500) 40%, transparent);
+  background: color-mix(in srgb, var(--color-danger-500) 18%, transparent);
+  color: var(--color-danger-500);
+  font-weight: 700;
+  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 2;
+  transition: opacity var(--transition-fast), transform var(--transition-fast), background var(--transition-fast);
+}
+
+body[data-editing="1"] .block.is-selected .block-delete {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+body[data-editing="1"] .block.is-selected .block-delete:hover {
+  background: var(--color-danger-500);
+  color: #fff;
+  transform: translateY(-1px) scale(1.05);
 }
 
 .block h1,

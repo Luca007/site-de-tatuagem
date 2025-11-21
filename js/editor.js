@@ -33,6 +33,7 @@ const configureCanvasBtn = document.getElementById('configure-canvas');
 const canvasSettingsDialog = document.getElementById('canvas-settings');
 const canvasSettingsForm = document.getElementById('canvas-settings-form');
 const canvasSettingsCloseButtons = Array.from(document.querySelectorAll('[data-canvas-close]'));
+canvas?.addEventListener('pointerdown', handleCanvasPointerDown);
 
 const DEFAULT_BLOCK_SIZE = { w: 260, h: 180 };
 const BLOCK_PRESETS = {
@@ -59,6 +60,7 @@ const BLOCK_DEFAULT_PROPS = {
 };
 
 const registry = new Map();
+const selection = new Set();
 
 let tattooerUid = null;
 let layoutState = null;
@@ -420,6 +422,7 @@ export function enableEdit() {
 export function disableEdit() {
   editing = false;
   document.body.dataset.editing = '0';
+  clearSelection();
   render();
 }
 
@@ -432,9 +435,16 @@ export async function saveLayout(showMessage = true) {
 }
 
 function render() {
+  pruneSelection();
+  if (!editing) {
+    clearSelection();
+  }
   resetCanvas();
   applyCanvasStyles(layoutState.canvas);
   layoutState.blocks.forEach(renderBlock);
+  if (editing) {
+    applySelectionStyles();
+  }
   refreshEditorControls();
 }
 
@@ -449,6 +459,10 @@ function renderBlock(block) {
   if (!node) return;
   applyBlockFrame(node, block);
   bindBlockEditing(node, block);
+  if (editing) {
+    bindSelectionHandles(node);
+    injectDeleteButton(node, block);
+  }
   registry.set(block.id, { def: block, node });
 }
 
@@ -484,20 +498,36 @@ function buildSnapOptions() {
 }
 
 function setupDraggable(instance, node, snap) {
+  let dragNodes = [];
   instance.draggable({
     modifiers: snap ? [window.interact.modifiers.snap(snap)] : [],
     listeners: {
+      start() {
+        ensureSelectionForDrag(node);
+        dragNodes = resolveDragNodes(node);
+        dragNodes.forEach((target) => target.classList.add('dragging'));
+      },
       move(event) {
-        const x = (parseFloat(node.getAttribute('data-x')) || 0) + event.dx;
-        const y = (parseFloat(node.getAttribute('data-y')) || 0) + event.dy;
-        node.style.transform = `translate(${x}px, ${y}px)`;
-        node.dataset.x = x;
-        node.dataset.y = y;
-        node.classList.add('dragging');
+        if (!dragNodes.length) {
+          dragNodes = resolveDragNodes(node);
+        }
+        dragNodes.forEach((target) => {
+          const x = (parseFloat(target.dataset.x) || 0) + event.dx;
+          const y = (parseFloat(target.dataset.y) || 0) + event.dy;
+          target.style.transform = `translate(${x}px, ${y}px)`;
+          target.dataset.x = x;
+          target.dataset.y = y;
+        });
       },
       end() {
-        applyDeltaPosition(node);
-        node.classList.remove('dragging');
+        if (!dragNodes.length) {
+          dragNodes = resolveDragNodes(node);
+        }
+        dragNodes.forEach((target) => {
+          applyDeltaPosition(target);
+          target.classList.remove('dragging');
+        });
+        dragNodes = [];
         scheduleAutoSave();
       }
     }
@@ -1146,8 +1176,9 @@ function handleBlockSelection(type) {
   const position = nextBlockPosition();
   const props = cloneDefaultProps(type);
   const viewport = computeViewportMetrics({ x: position.x, y: position.y, w: frame.w, h: frame.h });
+  const blockId = crypto.randomUUID();
   layoutState.blocks.push({
-    id: crypto.randomUUID(),
+    id: blockId,
     type,
     x: position.x,
     y: position.y,
@@ -1157,6 +1188,7 @@ function handleBlockSelection(type) {
     viewport
   });
   render();
+  updateSelection(blockId, false);
   scheduleAutoSave();
   closeBlockPicker();
   showToast('Bloco adicionado ao layout.', 'success');
@@ -1171,4 +1203,128 @@ function nextBlockPosition() {
     x: 48 + col * 140,
     y: 48 + row * 160
   };
+}
+
+function bindSelectionHandles(node) {
+  node.addEventListener('pointerdown', handleBlockPointerDown);
+}
+
+function handleBlockPointerDown(event) {
+  if (!editing || (event.button && event.button !== 0)) return;
+  const target = event.target;
+  if (target instanceof Element && target.closest('.block-delete')) return;
+  const node = event.currentTarget;
+  if (!(node instanceof HTMLElement)) return;
+  const blockId = node.dataset.blockId;
+  if (!blockId) return;
+  const additive = isAdditiveSelectionEvent(event);
+  updateSelection(blockId, additive);
+}
+
+function isAdditiveSelectionEvent(event) {
+  return Boolean(event.ctrlKey || event.metaKey);
+}
+
+function injectDeleteButton(node, block) {
+  if (node.querySelector('.block-delete')) return;
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'block-delete';
+  button.dataset.blockDelete = '1';
+  button.setAttribute('aria-label', 'Remover bloco');
+  button.textContent = 'X';
+  button.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    deleteBlock(block.id);
+  });
+  node.append(button);
+}
+
+function deleteBlock(blockId) {
+  if (!editing) return;
+  const index = layoutState.blocks.findIndex((block) => block.id === blockId);
+  if (index === -1) return;
+  layoutState.blocks.splice(index, 1);
+  const entry = registry.get(blockId);
+  if (entry?.node?.parentElement) {
+    entry.node.parentElement.removeChild(entry.node);
+  }
+  registry.delete(blockId);
+  if (editingBlockId === blockId) {
+    closeBlockEditor();
+  }
+  selection.delete(blockId);
+  applySelectionStyles();
+  scheduleAutoSave();
+  showToast('Bloco removido do layout.', 'info');
+}
+
+function updateSelection(blockId, additive = false) {
+  if (!editing || !blockId) return;
+  if (!additive) {
+    selection.clear();
+    selection.add(blockId);
+  } else if (selection.has(blockId)) {
+    selection.delete(blockId);
+  } else {
+    selection.add(blockId);
+  }
+  applySelectionStyles();
+}
+
+function applySelectionStyles() {
+  registry.forEach(({ node }, id) => {
+    const isSelected = editing && selection.has(id);
+    node.classList.toggle('is-selected', Boolean(isSelected));
+  });
+}
+
+function clearSelection() {
+  selection.clear();
+  registry.forEach(({ node }) => node.classList.remove('is-selected'));
+}
+
+function pruneSelection() {
+  if (!selection.size) return;
+  const validIds = new Set(layoutState.blocks.map((block) => block.id));
+  selection.forEach((id) => {
+    if (!validIds.has(id)) {
+      selection.delete(id);
+    }
+  });
+}
+
+function resolveDragNodes(node) {
+  if (selection.size > 1 && selection.has(node.dataset.blockId || '')) {
+    const nodes = getSelectedNodes();
+    if (nodes.length) return nodes;
+  }
+  return [node];
+}
+
+function getSelectedNodes() {
+  if (!selection.size) return [];
+  const nodes = [];
+  selection.forEach((id) => {
+    const entry = registry.get(id);
+    if (entry?.node) nodes.push(entry.node);
+  });
+  return nodes;
+}
+
+function ensureSelectionForDrag(node) {
+  if (!editing) return;
+  const blockId = node.dataset.blockId;
+  if (!blockId) return;
+  if (!selection.size || !selection.has(blockId)) {
+    updateSelection(blockId, false);
+  }
+}
+
+function handleCanvasPointerDown(event) {
+  if (!editing) return;
+  const target = event.target;
+  if (target instanceof Element && target.closest('.block')) return;
+  clearSelection();
 }
