@@ -13,6 +13,10 @@ export function initNavigation() {
 }
 
 export function switchView(id) {
+  const targetBtn = navButtons.find((btn) => btn.dataset.view === id);
+  if (targetBtn && targetBtn.classList.contains('hidden')) {
+    return;
+  }
   navButtons.forEach((btn) => {
     const isActive = btn.dataset.view === id;
     btn.classList.toggle('active', isActive);

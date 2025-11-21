@@ -55,7 +55,7 @@ const BLOCK_DEFAULT_PROPS = {
   },
   Testimonial: { quoteMarkdown: DEFAULT_TESTIMONIAL_MARKDOWN, authorMarkdown: DEFAULT_AUTHOR_MARKDOWN },
   ServiceList: { bodyMarkdown: DEFAULT_SERVICE_MARKDOWN, accentColor: DEFAULT_SERVICE_ACCENT },
-  Video: { url: 'https://www.youtube.com/embed/dQw4w9WgXcQ', captionMarkdown: '' }
+  Video: { url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', captionMarkdown: '' }
 };
 
 const registry = new Map();
@@ -154,8 +154,8 @@ const PROP_NORMALISERS = {
   Video(legacy, defaults) {
     return {
       ...defaults,
-      url: legacy.url || defaults.url,
-      captionMarkdown: legacy.captionMarkdown || legacy.caption || defaults.captionMarkdown
+      url: (legacy.url || defaults.url || '').trim(),
+      captionMarkdown: (legacy.captionMarkdown || legacy.caption || defaults.captionMarkdown || '').trim()
     };
   }
 };
@@ -624,7 +624,10 @@ const EDITOR_VALUE_EXTRACTORS = {
     bodyMarkdown: block.props.bodyMarkdown || DEFAULT_SERVICE_MARKDOWN,
     accentColor: block.props.accentColor || DEFAULT_SERVICE_ACCENT
   }),
-  Video: (block) => ({ url: block.props.url || '', captionMarkdown: block.props.captionMarkdown || '' })
+  Video: (block) => ({
+    url: (block.props.url || '').trim(),
+    captionMarkdown: block.props.captionMarkdown || ''
+  })
 };
 
 const EDITOR_VALUE_APPLIERS = {
@@ -655,8 +658,9 @@ const EDITOR_VALUE_APPLIERS = {
   }),
   Video: (block, values) => ({
     ...block.props,
-    url: values.url || block.props.url,
-    captionMarkdown: values.captionMarkdown || ''
+    url: (values.url || block.props.url || '').trim(),
+    captionMarkdown:
+      typeof values.captionMarkdown === 'string' ? values.captionMarkdown : block.props.captionMarkdown || ''
   })
 };
 
@@ -733,10 +737,11 @@ const BLOCK_FIELD_BUILDERS = {
   },
   Video() {
     addInputField({
-      label: 'URL do vídeo (embed)',
+      label: 'URL do vídeo',
       name: 'url',
       value: editorValues.url,
-      placeholder: 'https://www.youtube.com/embed/...'
+      placeholder: 'https://youtu.be/seu-video ou https://cdn.com/video.mp4',
+      description: 'Links do YouTube/Shorts são convertidos automaticamente e iniciam o vídeo assim que carregam.'
     });
     addTextareaField({
       label: 'Legenda (Markdown opcional)',
@@ -779,7 +784,7 @@ function addTextareaField({ label, name, value, rows = 3, description = '', data
   blockEditorFields.append(wrapper);
 }
 
-function addInputField({ label, name, value, placeholder = '' }) {
+function addInputField({ label, name, value, placeholder = '', description = '' }) {
   if (!blockEditorFields) return;
   const wrapper = document.createElement('label');
   wrapper.className = 'editor-field';
@@ -790,6 +795,12 @@ function addInputField({ label, name, value, placeholder = '' }) {
   input.value = value || '';
   input.placeholder = placeholder;
   wrapper.append(span, input);
+  if (description) {
+    const hint = document.createElement('small');
+    hint.className = 'editor-hint';
+    hint.textContent = description;
+    wrapper.append(hint);
+  }
   blockEditorFields.append(wrapper);
 }
 

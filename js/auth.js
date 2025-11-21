@@ -17,18 +17,20 @@ import {
   reauthenticateWithCredential,
   EmailAuthProvider
 } from './firebase.js';
-import { showToast, formToObject } from './ui.js';
+import { showToast, formToObject, switchView } from './ui.js';
 
 const userInfo = document.getElementById('user-info');
 const btnLogin = document.getElementById('btn-login');
 const btnLogout = document.getElementById('btn-logout');
 const btnSettings = document.getElementById('btn-settings');
+const btnChat = document.getElementById('btn-chat');
 const authDialog = document.getElementById('auth-dialog');
 const authClose = document.getElementById('auth-close');
 const authTabs = Array.from(document.querySelectorAll('[data-auth-tab]'));
 const loginForm = document.getElementById('login-form');
 const registerForm = document.getElementById('register-form');
 const loginGoogleBtn = document.getElementById('login-google');
+const chatView = document.getElementById('chat-view');
 
 export let currentUser = null;
 export let currentRole = 'guest';
@@ -66,6 +68,8 @@ onAuthStateChanged(auth, async (user) => {
     btnLogin?.classList.remove('hidden');
     btnLogout?.classList.add('hidden');
     btnSettings?.classList.add('hidden');
+    btnChat?.classList.add('hidden');
+    redirectGuestFromRestrictedViews();
     document.dispatchEvent(new CustomEvent('auth:ready', { detail: null }));
     return;
   }
@@ -77,6 +81,7 @@ onAuthStateChanged(auth, async (user) => {
   btnLogin?.classList.add('hidden');
   btnLogout?.classList.remove('hidden');
   btnSettings?.classList.toggle('hidden', !user);
+  btnChat?.classList.toggle('hidden', !user);
   document.dispatchEvent(new CustomEvent('auth:ready', { detail: user }));
   closeAuthDialog();
 });
@@ -299,4 +304,9 @@ function validateRegistrationForm({ displayName, email, password, confirmPasswor
   if (password.length < 6) return 'A senha deve ter pelo menos 6 caracteres.';
   if (password !== confirmPassword) return 'As senhas não conferem.';
   return '';
+}
+
+function redirectGuestFromRestrictedViews() {
+  if (!chatView?.classList.contains('active')) return;
+  switchView('portfolio');
 }

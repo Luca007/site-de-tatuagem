@@ -5,6 +5,14 @@ const boldPattern = /\*\*(.+?)\*\*|__(.+?)__/g;
 const italicPattern = /\*(.+?)\*|_(.+?)_/g;
 const codePattern = /`([^`]+?)`/g;
 const EPHEMERAL_URL_PREFIX = 'blob:';
+const YOUTUBE_PATTERNS = [
+  /youtu\.be\/([\w-]{11})/i,
+  /youtube\.com\/shorts\/([\w-]{11})/i,
+  /youtube\.com\/embed\/([\w-]{11})/i,
+  /youtube\.com\/watch.*[?&]v=([\w-]{11})/i,
+  /youtube\.com\/live\/([\w-]{11})/i
+];
+const VIDEO_EXTENSIONS = ['.mp4', '.webm', '.ogg', '.ogv', '.mov', '.m4v'];
 
 export const DEFAULT_TEXT_MARKDOWN = '# Seu nome artístico\nCompartilhe seu estilo, especialidades e formas de contato.';
 export const DEFAULT_BUTTON_LABEL = 'Solicitar orçamento';
@@ -97,14 +105,16 @@ export const Blocks = {
     stampProps(node, { bodyMarkdown, accentColor: accent });
     return node;
   },
-  Video: ({ url = 'https://www.youtube.com/embed/dQw4w9WgXcQ', captionMarkdown = '' }) => {
+  Video: ({ url = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', captionMarkdown = '' }) => {
     const node = createNode('div', 'block block-video');
+    const source = resolveVideoSource(url);
+    const caption = captionMarkdown ? `<p class="caption">${renderMarkdownInline(captionMarkdown)}</p>` : '';
     node.innerHTML = `
       <div class="handle">Vídeo</div>
-      <iframe src="${url}" title="Vídeo do portfólio" allowfullscreen loading="lazy"></iframe>
-      ${captionMarkdown ? `<p class="caption">${renderMarkdownInline(captionMarkdown)}</p>` : ''}
+      ${createVideoPlayerMarkup(source)}
+      ${caption}
     `;
-    stampProps(node, { url, captionMarkdown });
+    stampProps(node, { url: source.originalUrl, captionMarkdown });
     return node;
   }
 };
@@ -177,8 +187,12 @@ function collectServiceListProps(node) {
 }
 
 function collectVideoProps(node) {
-  const url = node.querySelector('iframe')?.src || '';
-  return { url, captionMarkdown: '' };
+  const stored = readProps(node);
+  const fallbackUrl = node.querySelector('iframe, video')?.src || '';
+  return {
+    url: stored.url || fallbackUrl || '',
+    captionMarkdown: stored.captionMarkdown || ''
+  };
 }
 
 function collectTextBlockProps(node) {
@@ -481,5 +495,69 @@ function normaliseColor(value, fallback) {
   if (typeof value !== 'string') return fallback;
   const trimmed = value.trim();
   return /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(trimmed) ? trimmed : fallback;
+}
+
+function resolveVideoSource(url) {
+  const cleanUrl = typeof url === 'string' ? url.trim() : '';
+  if (!cleanUrl) {
+    return { type: 'empty', embedUrl: '', originalUrl: '' };
+  }
+  const youtubeId = extractYoutubeId(cleanUrl);
+  if (youtubeId) {
+    return {
+      type: 'youtube',
+      embedUrl: buildYoutubeEmbedUrl(youtubeId),
+      originalUrl: cleanUrl
+    };
+  }
+  if (isNativeVideo(cleanUrl)) {
+    return { type: 'native', embedUrl: cleanUrl, originalUrl: cleanUrl };
+  }
+  return { type: 'external', embedUrl: cleanUrl, originalUrl: cleanUrl };
+}
+
+function createVideoPlayerMarkup(source) {
+  if (!source.embedUrl) {
+    return '<div class="block-video-empty">Informe uma URL de vídeo válida para este bloco.</div>';
+  }
+  if (source.type === 'native') {
+    return `<video class="block-video-player" src="${escapeHtml(source.embedUrl)}" autoplay muted playsinline loop controls preload="metadata"></video>`;
+  }
+  const allowList = source.type === 'youtube'
+    ? 'autoplay; clipboard-write; encrypted-media; fullscreen; gyroscope; picture-in-picture; web-share'
+    : 'accelerometer; clipboard-write; encrypted-media; fullscreen; gyroscope; picture-in-picture; web-share';
+  const providerAttr = source.type === 'youtube' ? ' data-provider="youtube"' : '';
+  return `<iframe class="block-video-player" src="${escapeHtml(source.embedUrl)}" title="Vídeo do portfólio" loading="lazy" referrerpolicy="strict-origin-when-cross-origin" allow="${allowList}" allowfullscreen${providerAttr}></iframe>`;
+}
+
+function extractYoutubeId(url) {
+  for (const pattern of YOUTUBE_PATTERNS) {
+    const match = pattern.exec(url);
+    if (match && match[1]) return match[1];
+  }
+  return '';
+}
+
+function buildYoutubeEmbedUrl(id) {
+  const params = new URLSearchParams({
+    autoplay: '1',
+    mute: '1',
+    playsinline: '1',
+    rel: '0',
+    showinfo: '0',
+    modestbranding: '1'
+  });
+  return `https://www.youtube.com/embed/${id}?${params.toString()}`;
+}
+
+function isNativeVideo(url) {
+  if (!url) return false;
+  if (url.startsWith(EPHEMERAL_URL_PREFIX)) return true;
+  return hasVideoExtension(url);
+}
+
+function hasVideoExtension(url) {
+  const normalised = url.split('?')[0].toLowerCase();
+  return VIDEO_EXTENSIONS.some((ext) => normalised.endsWith(ext));
 }
 
