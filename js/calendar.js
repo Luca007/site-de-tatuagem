@@ -45,6 +45,7 @@ const bookingPanel = document.getElementById('booking-panel');
 const timezoneSelect = document.getElementById('calendar-timezone');
 const slotDialog = document.getElementById('slot-dialog');
 const slotForm = document.getElementById('slot-form');
+const MONTH_DAYNAMES = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 
 const state = {
   tattooerUid: null,
@@ -84,18 +85,22 @@ async function ensureCalendar() {
   if (state.calendar || !window.tui?.Calendar) return;
   state.calendar = new window.tui.Calendar(calendarRoot, {
     defaultView: 'month',
-    usageStatistics: false
+    usageStatistics: false,
+    month: buildMonthOptions()
   });
   state.calendar.setCalendars?.(CALENDAR_CALENDARS);
-  state.calendar.setOptions?.({
-    month: {
-      startDayOfWeek: 1,
-      narrowWeekend: true,
-      daynames: ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
-    }
-  });
+  state.calendar.setOptions?.({ month: buildMonthOptions() });
   state.calendar.on('selectDateTime', ({ start }) => onSelectSlot(parseDate(start)));
   state.calendar.on('clickSchedule', ({ schedule }) => onClickSlot(schedule?.raw));
+}
+
+function buildMonthOptions() {
+  return {
+    startDayOfWeek: 1,
+    narrowWeekend: true,
+    daynames: [...MONTH_DAYNAMES],
+    dayNames: [...MONTH_DAYNAMES]
+  };
 }
 
 async function loadAvailabilityData() {
