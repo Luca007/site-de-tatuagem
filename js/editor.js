@@ -498,36 +498,24 @@ function buildSnapOptions() {
 }
 
 function setupDraggable(instance, node, snap) {
-  let dragNodes = [];
+  let dragState = null;
   instance.draggable({
     modifiers: snap ? [window.interact.modifiers.snap(snap)] : [],
     listeners: {
       start() {
-        ensureSelectionForDrag(node);
-        dragNodes = resolveDragNodes(node);
-        dragNodes.forEach((target) => target.classList.add('dragging'));
+        dragState = createDragState(node);
       },
       move(event) {
-        if (!dragNodes.length) {
-          dragNodes = resolveDragNodes(node);
+        if (!dragState) {
+          dragState = createDragState(node);
         }
-        dragNodes.forEach((target) => {
-          const x = (parseFloat(target.dataset.x) || 0) + event.dx;
-          const y = (parseFloat(target.dataset.y) || 0) + event.dy;
-          target.style.transform = `translate(${x}px, ${y}px)`;
-          target.dataset.x = x;
-          target.dataset.y = y;
-        });
+        if (!dragState) return;
+        updateDragTransforms(dragState, event.dx, event.dy);
       },
       end() {
-        if (!dragNodes.length) {
-          dragNodes = resolveDragNodes(node);
-        }
-        dragNodes.forEach((target) => {
-          applyDeltaPosition(target);
-          target.classList.remove('dragging');
-        });
-        dragNodes = [];
+        if (!dragState) return;
+        commitDragState(dragState);
+        dragState = null;
         scheduleAutoSave();
       }
     }
@@ -545,16 +533,6 @@ function setupResizable(instance, node, snap) {
       node.style.height = `${event.rect.height}px`;
     })
     .on('resizeend', () => scheduleAutoSave());
-}
-
-function applyDeltaPosition(node) {
-  const x = parseFloat(node.dataset.x) || 0;
-  const y = parseFloat(node.dataset.y) || 0;
-  node.style.left = `${(parseInt(node.style.left, 10) || 0) + x}px`;
-  node.style.top = `${(parseInt(node.style.top, 10) || 0) + y}px`;
-  node.style.transform = 'translate(0, 0)';
-  node.dataset.x = '0';
-  node.dataset.y = '0';
 }
 
 function collectLayoutFromDom() {
@@ -1218,6 +1196,10 @@ function handleBlockPointerDown(event) {
   const blockId = node.dataset.blockId;
   if (!blockId) return;
   const additive = isAdditiveSelectionEvent(event);
+  if (!additive && selection.size > 1 && selection.has(blockId)) {
+    // Preserve multi-selection so group drag keeps all blocks aligned.
+    return;
+  }
   updateSelection(blockId, additive);
 }
 
@@ -1241,8 +1223,13 @@ function injectDeleteButton(node, block) {
   node.append(button);
 }
 
-function deleteBlock(blockId) {
+function deleteBlock(blockId, options = {}) {
   if (!editing) return;
+  const { skipConfirm = false } = options;
+  if (!skipConfirm) {
+    const confirmed = window.confirm('Tem certeza de que deseja remover este bloco? Esta ação não pode ser desfeita.');
+    if (!confirmed) return;
+  }
   const index = layoutState.blocks.findIndex((block) => block.id === blockId);
   if (index === -1) return;
   layoutState.blocks.splice(index, 1);
@@ -1311,6 +1298,43 @@ function getSelectedNodes() {
     if (entry?.node) nodes.push(entry.node);
   });
   return nodes;
+}
+
+function createDragState(node) {
+  if (!(node instanceof HTMLElement)) return null;
+  ensureSelectionForDrag(node);
+  const targets = resolveDragNodes(node);
+  if (!targets.length) return null;
+  const entries = targets.map((target) => ({
+    node: target,
+    startX: toNumber(target.style.left, target.offsetLeft || 0),
+    startY: toNumber(target.style.top, target.offsetTop || 0)
+  }));
+  entries.forEach(({ node: target }) => target.classList.add('dragging'));
+  return {
+    entries,
+    deltaX: 0,
+    deltaY: 0
+  };
+}
+
+function updateDragTransforms(state, dx, dy) {
+  if (!state) return;
+  state.deltaX += dx;
+  state.deltaY += dy;
+  state.entries.forEach(({ node }) => {
+    node.style.transform = `translate(${state.deltaX}px, ${state.deltaY}px)`;
+  });
+}
+
+function commitDragState(state) {
+  if (!state) return;
+  state.entries.forEach(({ node, startX, startY }) => {
+    node.style.left = `${Math.round(startX + state.deltaX)}px`;
+    node.style.top = `${Math.round(startY + state.deltaY)}px`;
+    node.style.transform = 'translate(0, 0)';
+    node.classList.remove('dragging');
+  });
 }
 
 function ensureSelectionForDrag(node) {
