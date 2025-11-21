@@ -106,6 +106,10 @@ function buildMonthOptions() {
 async function loadAvailabilityData() {
   if (!state.tattooerUid) return;
   state.slots = await readAvailability(state.tattooerUid);
+  if (!state.slots.length) {
+    state.slots = buildDemoSlots();
+    await saveAvailability(state.tattooerUid, state.slots);
+  }
   renderSlots();
 }
 
@@ -220,18 +224,25 @@ function openSlotDialog(date = new Date()) {
 
 async function handleSlotFormSubmit(event) {
   event.preventDefault();
+  const payload = extractSlotFormPayload();
+  if (!payload) return;
+  await addSlot(payload.iso, payload.durationMin);
+  slotDialog?.close('confirm');
+}
+
+function extractSlotFormPayload() {
+  if (!slotForm) return null;
   const form = new FormData(slotForm);
   const date = form.get('slot-date');
   const time = form.get('slot-time');
-  const duration = Number(form.get('slot-duration')) || 60;
-  if (!date || !time) return;
+  if (!date || !time) return null;
   const iso = buildSlotIso(date, time);
   if (!iso) {
     showToast('Horário inválido. Verifique a data e hora informadas.', 'error');
-    return;
+    return null;
   }
-  await addSlot(iso, duration);
-  slotDialog?.close('confirm');
+  const durationMin = Number(form.get('slot-duration')) || 60;
+  return { iso, durationMin };
 }
 
 async function addSlot(iso, durationMin) {
@@ -263,32 +274,54 @@ function toggleSlotStatus(slotId) {
 }
 
 async function requestBooking(slot) {
-  const bookingId = `${state.tattooerUid}_${slot.id}`;
+  const bookingId = buildBookingId(slot.id);
+  await persistBookingRequest(bookingId, slot);
+  const delivered = await notifyTattooerAboutRequest(slot);
+  handleBookingRequestResult(delivered);
+}
+
+function buildBookingId(slotId) {
+  return `${state.tattooerUid}_${slotId}`;
+}
+
+async function persistBookingRequest(bookingId, slot) {
   await runTransaction(db, async (tx) => {
     const ref = doc(db, 'bookings', bookingId);
     const current = await tx.get(ref);
-    if (current.exists() && current.data()?.status !== 'cancelled') throw new Error('Horário já reservado.');
-    tx.set(ref, {
-      bookingId,
-      slotId: slot.id,
-      tattooerUid: state.tattooerUid,
-      clientUid: currentUser.uid,
-      status: 'pending',
-      createdAt: Date.now()
-    }, { merge: true });
+    if (current.exists() && current.data()?.status !== 'cancelled') {
+      throw new Error('Horário já reservado.');
+    }
+    tx.set(
+      ref,
+      {
+        bookingId,
+        slotId: slot.id,
+        tattooerUid: state.tattooerUid,
+        clientUid: currentUser.uid,
+        status: 'pending',
+        createdAt: Date.now()
+      },
+      { merge: true }
+    );
   });
-  let delivered = true;
+}
+
+async function notifyTattooerAboutRequest(slot) {
   try {
     await sendBookingRequestMessage({
       slot,
       tattooerUid: state.tattooerUid,
       timezone: timezoneSelect?.value || 'UTC'
     });
+    return true;
   } catch (error) {
     console.error('Falha ao enviar pedido via chat.', error);
-    delivered = false;
     await openOrCreateChat();
+    return false;
   }
+}
+
+function handleBookingRequestResult(delivered) {
   const toastMessage = delivered
     ? 'Pedido enviado ao tatuador pelo chat.'
     : 'Pedido registrado. Abra o chat para confirmar manualmente.';
@@ -472,29 +505,48 @@ function handleBookingPanelClick(event) {
   const button = event.target.closest('button');
   if (!button || !bookingPanel.contains(button)) return;
 
-  const { bookingAction, slotAction, id, requestSlot } = button.dataset;
+  if (tryHandleBookingAction(button)) return;
+  if (tryHandleSlotAction(button)) return;
+  if (tryHandleClientAction(button)) return;
+}
 
-  if (bookingAction && id) {
-    const status = bookingAction === 'confirm' ? 'confirmed' : 'cancelled';
-    updateBookingStatus(id, status);
-    return;
+function tryHandleBookingAction(button) {
+  const { bookingAction, id } = button.dataset;
+  if (!bookingAction || !id) return false;
+  const status = bookingAction === 'confirm' ? 'confirmed' : 'cancelled';
+  updateBookingStatus(id, status);
+  return true;
+}
+
+function tryHandleSlotAction(button) {
+  const { slotAction, id } = button.dataset;
+  if (!slotAction) return false;
+  if (slotAction === 'toggle' && id) {
+    toggleSlotStatus(id);
+    return true;
   }
-
-  if (slotAction) {
-    if (slotAction === 'toggle' && id) toggleSlotStatus(id);
-    if (slotAction === 'clear') clearSelectedSlot();
-    return;
+  if (slotAction === 'clear') {
+    clearSelectedSlot();
+    return true;
   }
+  return false;
+}
 
-  if (requestSlot) {
-    const slot = state.slots.find((entry) => entry.id === requestSlot);
+function tryHandleClientAction(button) {
+  if (button.dataset.requestSlot) {
+    const slot = findSlot(button.dataset.requestSlot);
     if (slot) requestBooking(slot).catch((error) => showToast(error.message, 'error'));
-    return;
+    return true;
   }
-
   if ('cancelSelection' in button.dataset) {
     clearSelectedSlot();
+    return true;
   }
+  return false;
+}
+
+function findSlot(slotId) {
+  return state.slots.find((entry) => entry.id === slotId);
 }
 
 async function updateBookingStatus(id, status) {
@@ -572,4 +624,26 @@ function buildSlotIso(dateValue, timeValue) {
 
 function getActiveBooking(slotId) {
   return state.bookings.find((booking) => booking.slotId === slotId && booking.status !== 'cancelled');
+}
+
+function buildDemoSlots() {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const templates = [
+    { offset: 1, hour: 10, minute: 0, durationMin: 90, status: 'open' },
+    { offset: 2, hour: 14, minute: 30, durationMin: 60, status: 'open' },
+    { offset: 3, hour: 18, minute: 0, durationMin: 120, status: 'blocked' },
+    { offset: 5, hour: 11, minute: 15, durationMin: 75, status: 'open' },
+    { offset: 6, hour: 16, minute: 45, durationMin: 60, status: 'open' }
+  ];
+  return templates.map(({ offset, hour, minute, durationMin, status }) => {
+    const slotDate = new Date(today);
+    slotDate.setDate(slotDate.getDate() + offset);
+    slotDate.setHours(hour, minute, 0, 0);
+    return {
+      id: slotDate.toISOString(),
+      durationMin,
+      status
+    };
+  });
 }

@@ -15,6 +15,7 @@ import {
   servicesToMarkdown
 } from './components.js';
 import { showToast, setGridVisible } from './ui.js';
+import { createInteractionController } from './editor-interactions.js';
 
 const canvas = document.getElementById('canvas');
 const toggleBtn = document.getElementById('toggle-edit');
@@ -33,7 +34,6 @@ const configureCanvasBtn = document.getElementById('configure-canvas');
 const canvasSettingsDialog = document.getElementById('canvas-settings');
 const canvasSettingsForm = document.getElementById('canvas-settings-form');
 const canvasSettingsCloseButtons = Array.from(document.querySelectorAll('[data-canvas-close]'));
-canvas?.addEventListener('pointerdown', handleCanvasPointerDown);
 
 const DEFAULT_BLOCK_SIZE = { w: 260, h: 180 };
 const BLOCK_PRESETS = {
@@ -72,6 +72,32 @@ let editorValues = {};
 let editorBlockType = null;
 let editorLayout = null;
 let canvasDraft = null;
+
+const {
+  bindSelectionHandles,
+  deleteBlock,
+  updateSelection,
+  applySelectionStyles,
+  clearSelection,
+  pruneSelection,
+  createDragState,
+  updateDragTransforms,
+  commitDragState,
+  ensureSelectionForDrag,
+  handleCanvasPointerDown
+} = createInteractionController({
+  registry,
+  selection,
+  getLayoutState: () => layoutState,
+  isEditing: () => editing,
+  getEditingBlockId: () => editingBlockId,
+  closeBlockEditor,
+  scheduleAutoSave,
+  showToast,
+  toNumber
+});
+
+canvas?.addEventListener('pointerdown', handleCanvasPointerDown);
 
 function cloneDefaultProps(type) {
   const defaults = BLOCK_DEFAULT_PROPS[type];
@@ -1183,29 +1209,7 @@ function nextBlockPosition() {
   };
 }
 
-function bindSelectionHandles(node) {
-  node.addEventListener('pointerdown', handleBlockPointerDown);
-}
 
-function handleBlockPointerDown(event) {
-  if (!editing || (event.button && event.button !== 0)) return;
-  const target = event.target;
-  if (target instanceof Element && target.closest('.block-delete')) return;
-  const node = event.currentTarget;
-  if (!(node instanceof HTMLElement)) return;
-  const blockId = node.dataset.blockId;
-  if (!blockId) return;
-  const additive = isAdditiveSelectionEvent(event);
-  if (!additive && selection.size > 1 && selection.has(blockId)) {
-    // Preserve multi-selection so group drag keeps all blocks aligned.
-    return;
-  }
-  updateSelection(blockId, additive);
-}
-
-function isAdditiveSelectionEvent(event) {
-  return Boolean(event.ctrlKey || event.metaKey);
-}
 
 function injectDeleteButton(node, block) {
   if (node.querySelector('.block-delete')) return;
@@ -1223,132 +1227,4 @@ function injectDeleteButton(node, block) {
   node.append(button);
 }
 
-function deleteBlock(blockId, options = {}) {
-  if (!editing) return;
-  const { skipConfirm = false } = options;
-  if (!skipConfirm) {
-    const confirmed = window.confirm('Tem certeza de que deseja remover este bloco? Esta ação não pode ser desfeita.');
-    if (!confirmed) return;
-  }
-  const index = layoutState.blocks.findIndex((block) => block.id === blockId);
-  if (index === -1) return;
-  layoutState.blocks.splice(index, 1);
-  const entry = registry.get(blockId);
-  if (entry?.node?.parentElement) {
-    entry.node.parentElement.removeChild(entry.node);
-  }
-  registry.delete(blockId);
-  if (editingBlockId === blockId) {
-    closeBlockEditor();
-  }
-  selection.delete(blockId);
-  applySelectionStyles();
-  scheduleAutoSave();
-  showToast('Bloco removido do layout.', 'info');
-}
 
-function updateSelection(blockId, additive = false) {
-  if (!editing || !blockId) return;
-  if (!additive) {
-    selection.clear();
-    selection.add(blockId);
-  } else if (selection.has(blockId)) {
-    selection.delete(blockId);
-  } else {
-    selection.add(blockId);
-  }
-  applySelectionStyles();
-}
-
-function applySelectionStyles() {
-  registry.forEach(({ node }, id) => {
-    const isSelected = editing && selection.has(id);
-    node.classList.toggle('is-selected', Boolean(isSelected));
-  });
-}
-
-function clearSelection() {
-  selection.clear();
-  registry.forEach(({ node }) => node.classList.remove('is-selected'));
-}
-
-function pruneSelection() {
-  if (!selection.size) return;
-  const validIds = new Set(layoutState.blocks.map((block) => block.id));
-  selection.forEach((id) => {
-    if (!validIds.has(id)) {
-      selection.delete(id);
-    }
-  });
-}
-
-function resolveDragNodes(node) {
-  if (selection.size > 1 && selection.has(node.dataset.blockId || '')) {
-    const nodes = getSelectedNodes();
-    if (nodes.length) return nodes;
-  }
-  return [node];
-}
-
-function getSelectedNodes() {
-  if (!selection.size) return [];
-  const nodes = [];
-  selection.forEach((id) => {
-    const entry = registry.get(id);
-    if (entry?.node) nodes.push(entry.node);
-  });
-  return nodes;
-}
-
-function createDragState(node) {
-  if (!(node instanceof HTMLElement)) return null;
-  ensureSelectionForDrag(node);
-  const targets = resolveDragNodes(node);
-  if (!targets.length) return null;
-  const entries = targets.map((target) => ({
-    node: target,
-    startX: toNumber(target.style.left, target.offsetLeft || 0),
-    startY: toNumber(target.style.top, target.offsetTop || 0)
-  }));
-  entries.forEach(({ node: target }) => target.classList.add('dragging'));
-  return {
-    entries,
-    deltaX: 0,
-    deltaY: 0
-  };
-}
-
-function updateDragTransforms(state, dx, dy) {
-  if (!state) return;
-  state.deltaX += dx;
-  state.deltaY += dy;
-  state.entries.forEach(({ node }) => {
-    node.style.transform = `translate(${state.deltaX}px, ${state.deltaY}px)`;
-  });
-}
-
-function commitDragState(state) {
-  if (!state) return;
-  state.entries.forEach(({ node, startX, startY }) => {
-    node.style.left = `${Math.round(startX + state.deltaX)}px`;
-    node.style.top = `${Math.round(startY + state.deltaY)}px`;
-    node.style.transform = 'translate(0, 0)';
-    node.classList.remove('dragging');
-  });
-}
-
-function ensureSelectionForDrag(node) {
-  if (!editing) return;
-  const blockId = node.dataset.blockId;
-  if (!blockId) return;
-  if (!selection.size || !selection.has(blockId)) {
-    updateSelection(blockId, false);
-  }
-}
-
-function handleCanvasPointerDown(event) {
-  if (!editing) return;
-  const target = event.target;
-  if (target instanceof Element && target.closest('.block')) return;
-  clearSelection();
-}

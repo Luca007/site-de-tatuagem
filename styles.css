@@ -788,12 +788,12 @@ body[data-editing="1"] .block.is-selected .block-delete:hover {
 }
 
 .calendar-shell {
-  --calendar-bg: color-mix(in srgb, var(--surface-card) 92%, transparent);
-  --calendar-ink: var(--text);
-  --calendar-muted: color-mix(in srgb, var(--text) 60%, transparent);
-  --calendar-border: var(--outline-soft);
-  --calendar-grid: color-mix(in srgb, var(--text) 16%, transparent);
-  --calendar-today: color-mix(in srgb, var(--accent) 22%, transparent);
+  --calendar-bg: #f7f8fb;
+  --calendar-ink: #10162f;
+  --calendar-muted: color-mix(in srgb, var(--calendar-ink) 60%, white 40%);
+  --calendar-border: rgba(16, 22, 47, 0.08);
+  --calendar-grid: rgba(16, 22, 47, 0.12);
+  --calendar-today: rgba(159, 122, 234, 0.22);
   min-height: clamp(520px, 65vh, 760px);
   background:
     linear-gradient(160deg, rgba(159, 122, 234, 0.08), rgba(99, 179, 237, 0.05)),
@@ -842,23 +842,38 @@ body[data-editing="1"] .block.is-selected .block-delete:hover {
   color: var(--calendar-muted);
 }
 
+
 .calendar-shell .toastui-calendar-month-week-item {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 10px;
+  padding: 10px 16px 18px;
   background: transparent;
   border: 0;
 }
 
 .calendar-shell .toastui-calendar-weekday {
-  min-height: 110px;
+  min-height: 128px;
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--calendar-bg) 90%, white 10%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), 0 18px 40px rgba(15, 16, 28, 0.12);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
 }
 
 .calendar-shell .toastui-calendar-weekday-grid {
-  border-top: 1px solid var(--calendar-grid);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  border-top: 0;
 }
 
 .calendar-shell .toastui-calendar-daygrid-cell,
 .calendar-shell .toastui-calendar-weekday {
-  border-right: 1px solid var(--calendar-grid);
-  border-bottom: 1px solid var(--calendar-grid);
+  border-right: 0;
+  border-bottom: 0;
 }
 
 .calendar-shell .toastui-calendar-weekday:last-child,
@@ -868,15 +883,24 @@ body[data-editing="1"] .block.is-selected .block-delete:hover {
 
 .calendar-shell .toastui-calendar-grid-cell-header {
   display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  padding: 8px 12px;
+  justify-content: flex-end;
+  align-items: center;
+  padding: 0;
+  margin-bottom: 10px;
 }
 
 .calendar-shell .toastui-calendar-weekday-grid-date {
-  font-size: 13px;
+  font-size: 0.95rem;
   font-weight: 600;
-  color: var(--calendar-muted);
+  color: var(--calendar-ink);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
+  background: transparent;
+  font-variant-numeric: tabular-nums;
 }
 
 .calendar-shell .toastui-calendar-weekday-grid-date-decorator {
@@ -888,7 +912,11 @@ body[data-editing="1"] .block.is-selected .block-delete:hover {
 
 .calendar-shell .toastui-calendar-weekday-events {
   position: relative;
-  padding: 0 10px 10px;
+  flex: 1;
+  padding: 8px;
+  border-radius: var(--radius-md);
+  background: rgba(16, 22, 47, 0.02);
+  border: 1px dashed transparent;
 }
 
 .calendar-shell .toastui-calendar-holiday-sat .toastui-calendar-weekday-grid-date,
@@ -902,12 +930,7 @@ body[data-editing="1"] .block.is-selected .block-delete:hover {
 }
 
 .calendar-shell .toastui-calendar-weekday-events::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border: 1px solid color-mix(in srgb, var(--accent) 12%, transparent);
-  border-radius: var(--radius-md);
-  pointer-events: none;
+  display: none;
 }
 
 .calendar-shell .toastui-calendar-event {
@@ -1772,41 +1795,147 @@ body[data-editing="1"] .block.is-selected .block-delete:hover {
   border-color: rgba(159, 122, 234, 0.5);
 }
 
-#slot-dialog {
+.slot-modal {
   border: 0;
-  border-radius: 14px;
-  padding: 18px 20px;
-  background: rgba(23, 24, 27, 0.98);
-  color: inherit;
+  padding: 0;
+  background: transparent;
+  width: min(520px, 92vw);
 }
 
-#slot-dialog::backdrop {
-  background: rgba(0, 0, 0, 0.4);
+.slot-modal::backdrop {
+  background: rgba(3, 5, 12, 0.76);
+  backdrop-filter: blur(8px);
 }
 
 #slot-form {
+  background: color-mix(in srgb, var(--surface-card) 96%, black 10%);
+  border-radius: 28px;
+  border: 1px solid var(--outline-soft);
+  padding: clamp(22px, 4vw, 30px);
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  box-shadow: var(--shadow-border), 0 55px 120px rgba(4, 3, 12, 0.65);
+  backdrop-filter: blur(26px);
+}
+
+.slot-modal-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  align-items: flex-start;
+}
+
+.slot-modal-eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin: 0 0 4px;
+}
+
+.slot-modal-header h3 {
+  margin: 0;
+  font-size: 1.45rem;
+  color: var(--text);
+}
+
+.slot-modal-subtitle {
+  margin: 6px 0 0;
+  color: var(--text-soft);
+  font-size: 0.95rem;
+}
+
+.slot-modal-close {
+  border: 0;
+  background: color-mix(in srgb, var(--surface-overlay) 94%, transparent);
+  color: var(--text);
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: background var(--transition-fast), transform var(--transition-fast);
+}
+
+.slot-modal-close:hover,
+.slot-modal-close:focus-visible {
+  background: color-mix(in srgb, var(--accent) 28%, transparent);
+  transform: translateY(-1px);
+}
+
+.slot-modal-grid {
   display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 16px;
+}
+
+.slot-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--outline-soft);
+  background: color-mix(in srgb, var(--surface-glass) 95%, transparent);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.02);
+}
+
+.slot-field span {
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+
+.slot-field input {
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--text) 18%, transparent);
+  color: var(--text);
+  font-weight: 600;
+  font-size: 1rem;
+  padding: 8px 0 4px;
+}
+
+.slot-field input:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.slot-modal-footer {
+  display: flex;
+  justify-content: flex-end;
   gap: 12px;
 }
 
-#slot-form menu {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  margin: 0;
-  padding: 0;
-}
-
-#slot-form button {
-  border-radius: 8px;
-  border: 0;
-  padding: 8px 14px;
+.slot-btn {
+  border-radius: var(--radius-pill);
+  padding: 10px 20px;
+  font-weight: 600;
+  border: 1px solid transparent;
   cursor: pointer;
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast), border-color var(--transition-fast);
 }
 
-#slot-form button.secondary {
-  background: rgba(255, 255, 255, 0.12);
-  color: inherit;
+.slot-btn.secondary {
+  background: transparent;
+  color: var(--text);
+  border-color: var(--outline-soft);
+}
+
+.slot-btn.secondary:hover {
+  border-color: var(--accent);
+}
+
+.slot-btn.primary {
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-soft) 100%);
+  color: #0c0614;
+  box-shadow: 0 18px 30px rgba(159, 122, 234, 0.4);
+}
+
+.slot-btn.primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 25px 40px rgba(159, 122, 234, 0.45);
 }
 
 .timezone-picker {

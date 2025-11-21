@@ -482,25 +482,34 @@
       </form>
     </div>
   </dialog>
-  <dialog id="slot-dialog">
+  <dialog id="slot-dialog" class="slot-modal" aria-modal="true">
     <form id="slot-form" autocomplete="off">
-      <h3>Novo horário disponível</h3>
-      <label>
-        Data
-        <input type="date" id="slot-date" required />
-      </label>
-      <label>
-        Hora (fuso selecionado)
-        <input type="time" id="slot-time" step="900" required />
-      </label>
-      <label>
-        Duração (min)
-        <input type="number" id="slot-duration" min="15" step="15" value="60" required />
-      </label>
-      <menu>
-        <button type="button" class="secondary" data-slot-cancel>Cancelar</button>
-        <button type="submit" class="btn-primary">Adicionar</button>
-      </menu>
+      <header class="slot-modal-header">
+        <div>
+          <p class="slot-modal-eyebrow">Agenda</p>
+          <h3>Novo horário disponível</h3>
+          <p class="slot-modal-subtitle">Escolha uma data, horário e duração para liberar na agenda.</p>
+        </div>
+        <button type="button" class="slot-modal-close" data-slot-cancel aria-label="Fechar formulário">×</button>
+      </header>
+      <div class="slot-modal-grid">
+        <label class="slot-field">
+          <span>Data</span>
+          <input type="date" id="slot-date" required />
+        </label>
+        <label class="slot-field">
+          <span>Hora (fuso selecionado)</span>
+          <input type="time" id="slot-time" step="900" required />
+        </label>
+        <label class="slot-field">
+          <span>Duração (min)</span>
+          <input type="number" id="slot-duration" min="15" step="15" value="60" required />
+        </label>
+      </div>
+      <footer class="slot-modal-footer">
+        <button type="button" class="slot-btn secondary" data-slot-cancel>Cancelar</button>
+        <button type="submit" class="slot-btn primary">Adicionar horário</button>
+      </footer>
     </form>
   </dialog>
 

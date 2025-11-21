@@ -161,21 +161,37 @@ function hydrateAccountForms() {
   const signedIn = Boolean(currentUser);
   const passwordCapable = supportsPasswordAccount();
 
-  if (!signedIn) {
-    accountEmailForm?.reset();
-    accountPasswordForm?.reset();
-  } else if (accountEmailInput) {
-    accountEmailInput.value = currentUser.email || '';
-  }
+  resetAccountFormsWhenSignedOut(signedIn);
+  syncAccountEmailInput(signedIn);
+  clearSensitiveAccountInputs();
+  toggleAccountForms(signedIn && passwordCapable);
+  updateProviderWarningVisibility(signedIn, passwordCapable);
+}
 
+function resetAccountFormsWhenSignedOut(signedIn) {
+  if (signedIn) return;
+  accountEmailForm?.reset();
+  accountPasswordForm?.reset();
+}
+
+function syncAccountEmailInput(signedIn) {
+  if (!accountEmailInput) return;
+  accountEmailInput.value = signedIn ? currentUser.email || '' : '';
+}
+
+function clearSensitiveAccountInputs() {
   accountEmailPasswordInput && (accountEmailPasswordInput.value = '');
   accountPasswordCurrentInput && (accountPasswordCurrentInput.value = '');
   accountPasswordNewInput && (accountPasswordNewInput.value = '');
   accountPasswordConfirmInput && (accountPasswordConfirmInput.value = '');
+}
 
-  setFormEnabled(accountEmailForm, signedIn && passwordCapable);
-  setFormEnabled(accountPasswordForm, signedIn && passwordCapable);
+function toggleAccountForms(enabled) {
+  setFormEnabled(accountEmailForm, enabled);
+  setFormEnabled(accountPasswordForm, enabled);
+}
 
+function updateProviderWarningVisibility(signedIn, passwordCapable) {
   if (accountProviderWarning) {
     accountProviderWarning.hidden = !signedIn || passwordCapable;
   }
@@ -183,40 +199,56 @@ function hydrateAccountForms() {
 
 async function handleAccountEmailSubmit(event) {
   event.preventDefault();
-  if (!accountEmailInput) return;
-  if (!supportsPasswordAccount()) {
-    showToast('Gerencie email e senha pelo provedor onde fez o cadastro.', 'info');
-    return;
-  }
-  const email = accountEmailInput.value.trim();
-  const currentPassword = accountEmailPasswordInput?.value || '';
+  if (!ensurePasswordAccountAccess() || !accountEmailInput) return;
+  const payload = buildEmailUpdatePayload();
   try {
-    await updateAccountEmail({ email, currentPassword });
+    await updateAccountEmail(payload);
     hydrateAccountForms();
   } catch (error) {
     showToast(error.message || 'Não foi possível atualizar o email.', 'error');
   }
 }
 
+function buildEmailUpdatePayload() {
+  return {
+    email: accountEmailInput?.value.trim() || '',
+    currentPassword: accountEmailPasswordInput?.value || ''
+  };
+}
+
 async function handleAccountPasswordSubmit(event) {
   event.preventDefault();
-  if (!supportsPasswordAccount()) {
-    showToast('Gerencie email e senha pelo provedor onde fez o cadastro.', 'info');
-    return;
-  }
-  const currentPassword = accountPasswordCurrentInput?.value || '';
-  const newPassword = accountPasswordNewInput?.value || '';
-  const confirmation = accountPasswordConfirmInput?.value || '';
-  if (newPassword !== confirmation) {
-    showToast('As senhas não conferem.', 'error');
-    return;
-  }
+  if (!ensurePasswordAccountAccess()) return;
+  const payload = buildPasswordUpdatePayload();
+  if (!payload) return;
   try {
-    await updateAccountPassword({ currentPassword, newPassword });
+    await updateAccountPassword(payload);
     accountPasswordForm?.reset();
   } catch (error) {
     showToast(error.message || 'Não foi possível atualizar a senha.', 'error');
   }
+}
+
+function buildPasswordUpdatePayload() {
+  const currentPassword = accountPasswordCurrentInput?.value || '';
+  const newPassword = accountPasswordNewInput?.value || '';
+  const confirmation = accountPasswordConfirmInput?.value || '';
+  if (!passwordsMatch(newPassword, confirmation)) {
+    return null;
+  }
+  return { currentPassword, newPassword };
+}
+
+function ensurePasswordAccountAccess() {
+  if (supportsPasswordAccount()) return true;
+  showToast('Gerencie email e senha pelo provedor onde fez o cadastro.', 'info');
+  return false;
+}
+
+function passwordsMatch(newPassword, confirmation) {
+  if (newPassword === confirmation) return true;
+  showToast('As senhas não conferem.', 'error');
+  return false;
 }
 
 function supportsPasswordAccount() {

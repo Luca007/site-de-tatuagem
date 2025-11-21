@@ -81,4 +81,4 @@ excluded_tools: []
 initial_prompt: ""
 
 project_name: "site-de-tatuagem"
-included_optional_tools: []
+included_optional_tools: [summarize_changes, prepare_for_new_conversation, read_file, restart_language_server, switch_modes]
